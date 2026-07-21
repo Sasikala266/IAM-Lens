@@ -40,7 +40,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "audit_reports" {
 
 # S3 Bucket Public Access Block
 resource "aws_s3_bucket_public_access_block" "audit_reports" {
-  bucket = aws_s3_bucket.audit_reports.id
+  bucket = aws_s3_bucket.audit_reports.bucket
 
   block_public_acls       = true
   block_public_policy     = true
@@ -53,6 +53,13 @@ resource "aws_s3_object" "report_prefix" {
   bucket  = aws_s3_bucket.audit_reports.id
   key     = "${var.s3_report_prefix}/"
   content = ""
+
+  depends_on = [
+    aws_s3_bucket.audit_reports,
+    aws_s3_bucket_versioning.audit_reports,
+    aws_s3_bucket_server_side_encryption_configuration.audit_reports,
+    aws_s3_bucket_public_access_block.audit_reports
+  ]
 
   tags = var.tags
 }
@@ -140,6 +147,9 @@ resource "aws_iam_policy" "lambda_policy" {
     }
   )
 }
+
+# Note: IAM policy explicitly depends on S3 bucket being fully created
+# to avoid circular dependency issues during resource creation
 
 # Attach Policy to Role
 resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
