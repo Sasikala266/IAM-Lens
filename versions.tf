@@ -12,3 +12,11 @@ terraform {
     }
   }
 }
+
+backend "s3" {
+    bucket = "terraform-tfstate-bucket-aiuscase"
+    key    = "IAM-Lens/terraform.tfstate"
+    region = "us-east-1"
+  }
+
+}
