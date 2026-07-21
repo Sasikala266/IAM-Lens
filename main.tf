@@ -18,51 +18,6 @@ resource "aws_s3_bucket" "audit_reports" {
   )
 }
 
-# S3 Bucket Versioning
-resource "aws_s3_bucket_versioning" "audit_reports" {
-  bucket = aws_s3_bucket.audit_reports.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# S3 Bucket Encryption
-resource "aws_s3_bucket_server_side_encryption_configuration" "audit_reports" {
-  bucket = aws_s3_bucket.audit_reports.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-# S3 Bucket Public Access Block
-resource "aws_s3_bucket_public_access_block" "audit_reports" {
-  bucket = aws_s3_bucket.audit_reports.bucket
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# Create a placeholder object for the prefix
-resource "aws_s3_object" "report_prefix" {
-  bucket  = aws_s3_bucket.audit_reports.id
-  key     = "${var.s3_report_prefix}/"
-  content = ""
-
-  depends_on = [
-    aws_s3_bucket.audit_reports,
-    aws_s3_bucket_versioning.audit_reports,
-    aws_s3_bucket_server_side_encryption_configuration.audit_reports,
-    aws_s3_bucket_public_access_block.audit_reports
-  ]
-
-  tags = var.tags
-}
 
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_execution" {
