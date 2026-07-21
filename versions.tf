@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.6.0"
 
   required_providers {
     aws = {
@@ -11,9 +11,8 @@ terraform {
       version = "~> 2.4"
     }
   }
-}
 
-backend "s3" {
+  backend "s3" {
     bucket = "terraform-tfstate-bucket-aiuscase"
     key    = "IAM-Lens/terraform.tfstate"
     region = "us-east-1"
