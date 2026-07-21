@@ -1,0 +1,80 @@
+name: Terraform Destroy and Rebuild
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-and-rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      # ✅ AWS auth option A: OIDC (recommended)
+    #   - name: Configure AWS Credentials (OIDC)
+    #     uses: aws-actions/configure-aws-credentials@v4
+    #     with:
+    #       role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    #       aws-region: us-east-1
+
+      # If you don't use OIDC, use access keys instead:
+      - name: Configure AWS Credentials (Keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Step 1: Destroy existing infrastructure
+      - name: Terraform Destroy (Auto-Approved)
+        run: terraform destroy -auto-approve
+        continue-on-error: false
+
+      - name: Wait before rebuild
+        run: sleep 10
+
+      # Step 2: Rebuild infrastructure from scratch
+      - name: Terraform Plan (Rebuild)
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply (Auto-Approved Rebuild)
+        run: terraform apply -auto-approve tfplan
+
+      - name: Show Outputs
+        run: terraform output
+
+      - name: Summary
+        run: |
+          echo "✅ Infrastructure destroyed and rebuilt successfully!"
+          echo ""
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          terraform output
