@@ -115,11 +115,48 @@ After deployment, Terraform will output:
 
 ## Clean Up
 
+### Manual Cleanup
+
 To destroy all resources created by Terraform:
 
 ```bash
 terraform destroy
 ```
+
+## GitHub Actions Workflows
+
+This project includes GitHub Actions workflows for automated deployment and infrastructure management:
+
+### 1. Terraform Deploy (terraform-deploy.yml)
+
+Standard deployment workflow that runs on:
+- Push to main branch
+- Manual trigger with options to plan/apply/destroy
+
+**Features:**
+- Environment selection (dev/prod)
+- Terraform action selection (plan/apply/destroy)
+- AWS authentication via access keys or OIDC
+
+### 2. Terraform Destroy and Rebuild (terraform-destroy-rebuild.yml)
+
+Specialized workflow for destroying all resources from scratch and rebuilding them.
+
+**Features:**
+- Manual trigger only (workflow_dispatch)
+- Auto-approves destroy action (no manual confirmation required)
+- Auto-approves rebuild/apply action
+- Automatically executes destroy → wait → rebuild sequence
+- Environment selection (dev/prod)
+
+**Usage:**
+1. Go to Actions tab in GitHub
+2. Select "Terraform Destroy and Rebuild" workflow
+3. Click "Run workflow"
+4. Select environment (dev/prod)
+5. Confirm execution
+
+**⚠️ Warning:** This workflow will destroy ALL infrastructure resources and rebuild them. Use with caution in production environments.
 
 ## Next Steps
 
