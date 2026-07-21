@@ -6,17 +6,6 @@ provider "aws" {
 # Data source for current AWS account
 data "aws_caller_identity" "current" {}
 
-# S3 Bucket for Audit Reports
-resource "aws_s3_bucket" "audit_reports" {
-  bucket = var.s3_bucket_name
-
-  tags = merge(
-    var.tags,
-    {
-      Name = var.s3_bucket_name
-    }
-  )
-}
 
 
 # IAM Role for Lambda
@@ -137,8 +126,8 @@ resource "aws_lambda_function" "iam_scanner" {
 
   environment {
     variables = {
-      S3_BUCKET_NAME = aws_s3_bucket.audit_reports.id
-      REPORT_PREFIX  = var.s3_report_prefix
+      S3_BUCKET_NAME = "sasi-audit-report-bucket"
+      REPORT_PREFIX  = "iam-audit-reports"
     }
   }
 
