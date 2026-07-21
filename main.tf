@@ -58,8 +58,8 @@ resource "aws_iam_policy" "lambda_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.audit_reports.arn,
-          "${aws_s3_bucket.audit_reports.arn}/*"
+          "arn:aws:s3:::sasi-audit-reports-bucket",
+          "arn:aws:s3:::sasi-audit-reports-bucket/*"
         ]
       },
       {
