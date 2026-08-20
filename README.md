@@ -190,6 +190,15 @@ terraform plan
 **S3 Access** (scoped to audit bucket only):
 - `s3:PutObject`, `s3:GetObject`, `s3:ListBucket`
 
+
+## GitHub Actions Workflows
+
+This project includes three GitHub Actions workflows:
+
+### 1. Terraform Deploy (terraform-deploy.yml)
+
+Main deployment workflow for infrastructure.
+
 ---
 **Features:**
 - Environment selection (dev/prod)
@@ -217,6 +226,20 @@ Specialized workflow for destroying all resources from scratch and rebuilding th
 **⚠️ Warning:** This workflow will destroy ALL infrastructure resources and rebuild them. Use with caution in production environments.
 
 ---
+### 3. Deploy Documentation to GitHub Pages (deploy-docs.yml)
+
+Automatically deploys project documentation to GitHub Pages.
+
+**Features:**
+- Triggers automatically on documentation changes (docs/, README.md)
+- Manual trigger available via workflow_dispatch
+- Uses stable actions/deploy-pages@v4 (more reliable than v5)
+- Includes retry guidance for transient GitHub service failures
+- Deploys all documentation files to a public GitHub Pages site
+
+**Usage:**
+The workflow runs automatically when documentation files are updated. You can also trigger it manually from the Actions tab if needed.
+
 
 ## Troubleshooting
 
@@ -226,6 +249,17 @@ Specialized workflow for destroying all resources from scratch and rebuilding th
 aws logs tail /aws/lambda/iam-scanner-lambda --follow
 ```
 
+
+### GitHub Pages Deployment Failures
+
+If you encounter 503 errors during GitHub Pages deployment:
+
+1. **Check GitHub Status**: Visit githubstatus.com to see if GitHub Pages is experiencing issues
+2. **Retry Deployment**: Go to Actions tab → Deploy Documentation → Re-run failed jobs
+3. **Verify Permissions**: Ensure repository has Pages enabled in Settings → Pages
+4. **Check Artifact**: Verify the build step completed successfully before deployment
+
+The workflow uses `actions/deploy-pages@v4` which is more stable than v5 and includes better error handling.
 For detailed troubleshooting, see [docs/USAGE.md](docs/USAGE.md#troubleshooting)
 
 ---
