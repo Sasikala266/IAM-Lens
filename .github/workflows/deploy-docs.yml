@@ -40,37 +40,168 @@ jobs:
         run: |
           mkdir -p _site
           
-          # Copy main README to index
-          cp README.md _site/index.md
-          
-          # Copy docs folder
-          cp -r docs/* _site/ 2>/dev/null || echo "No docs folder found, using README only"
-          
-          # Create a simple index.html that redirects to the rendered markdown
+          # Create index.html
           cat > _site/index.html << 'EOF'
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>IAM Audit Utility (IAM-Lens) - Documentation</title>
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
             <style>
-              .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
+              .markdown-body {
+                box-sizing: border-box;
+                min-width: 200px;
+                max-width: 980px;
+                margin: 0 auto;
+                padding: 45px;
+              }
+              @media (max-width: 767px) {
+                .markdown-body { padding: 15px; }
+              }
+              nav {
+                background-color: #24292e;
+                padding: 15px;
+                margin-bottom: 30px;
+              }
+              nav a {
+                color: #ffffff;
+                text-decoration: none;
+                padding: 8px 16px;
+                margin-right: 10px;
+                border-radius: 4px;
+              }
+              nav a:hover {
+                background-color: #444d56;
+              }
             </style>
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
           </head>
           <body>
+            <nav>
+              <a href="index.html">Home</a>
+              <a href="ARCHITECTURE.html">Architecture</a>
+              <a href="FEATURES.html">Features</a>
+              <a href="USAGE.html">Usage</a>
+            </nav>
             <article class="markdown-body">
-              <h1>IAM Audit Utility (IAM-Lens)</h1>
-              <p>Documentation site for IAM-Lens project.</p>
-              <ul>
-                <li><a href="ARCHITECTURE.html">Architecture Documentation</a></li>
-                <li><a href="FEATURES.html">Features</a></li>
-                <li><a href="USAGE.html">Usage Guide</a></li>
-              </ul>
+              <div id="content">Loading...</div>
             </article>
+            <script>
+              fetch('README.md')
+                .then(response => response.text())
+                .then(text => {
+                  document.getElementById('content').innerHTML = marked.parse(text);
+                })
+                .catch(err => {
+                  document.getElementById('content').innerHTML = '<h1>Error loading documentation</h1>';
+                });
+            </script>
           </body>
           </html>
           EOF
+          
+          # Copy README.md for the index page
+          cp README.md _site/README.md
+          
+          # Create ARCHITECTURE.html
+          cat > _site/ARCHITECTURE.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Architecture - IAM-Lens Documentation</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
+            <style>
+              .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
+              @media (max-width: 767px) { .markdown-body { padding: 15px; } }
+              nav { background-color: #24292e; padding: 15px; margin-bottom: 30px; }
+              nav a { color: #ffffff; text-decoration: none; padding: 8px 16px; margin-right: 10px; border-radius: 4px; }
+              nav a:hover { background-color: #444d56; }
+            </style>
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+          </head>
+          <body>
+            <nav>
+              <a href="index.html">Home</a>
+              <a href="ARCHITECTURE.html">Architecture</a>
+              <a href="FEATURES.html">Features</a>
+              <a href="USAGE.html">Usage</a>
+            </nav>
+            <article class="markdown-body"><div id="content">Loading...</div></article>
+            <script>fetch('ARCHITECTURE.md').then(r => r.text()).then(t => {document.getElementById('content').innerHTML = marked.parse(t);});</script>
+          </body>
+          </html>
+          EOF
+          
+          # Create FEATURES.html
+          cat > _site/FEATURES.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Features - IAM-Lens Documentation</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
+            <style>
+              .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
+              @media (max-width: 767px) { .markdown-body { padding: 15px; } }
+              nav { background-color: #24292e; padding: 15px; margin-bottom: 30px; }
+              nav a { color: #ffffff; text-decoration: none; padding: 8px 16px; margin-right: 10px; border-radius: 4px; }
+              nav a:hover { background-color: #444d56; }
+            </style>
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+          </head>
+          <body>
+            <nav>
+              <a href="index.html">Home</a>
+              <a href="ARCHITECTURE.html">Architecture</a>
+              <a href="FEATURES.html">Features</a>
+              <a href="USAGE.html">Usage</a>
+            </nav>
+            <article class="markdown-body"><div id="content">Loading...</div></article>
+            <script>fetch('FEATURES.md').then(r => r.text()).then(t => {document.getElementById('content').innerHTML = marked.parse(t);});</script>
+          </body>
+          </html>
+          EOF
+          
+          # Create USAGE.html
+          cat > _site/USAGE.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Usage - IAM-Lens Documentation</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
+            <style>
+              .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
+              @media (max-width: 767px) { .markdown-body { padding: 15px; } }
+              nav { background-color: #24292e; padding: 15px; margin-bottom: 30px; }
+              nav a { color: #ffffff; text-decoration: none; padding: 8px 16px; margin-right: 10px; border-radius: 4px; }
+              nav a:hover { background-color: #444d56; }
+            </style>
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+          </head>
+          <body>
+            <nav>
+              <a href="index.html">Home</a>
+              <a href="ARCHITECTURE.html">Architecture</a>
+              <a href="FEATURES.html">Features</a>
+              <a href="USAGE.html">Usage</a>
+            </nav>
+            <article class="markdown-body"><div id="content">Loading...</div></article>
+            <script>fetch('USAGE.md').then(r => r.text()).then(t => {document.getElementById('content').innerHTML = marked.parse(t);});</script>
+          </body>
+          </html>
+          EOF
+          
+          # Copy all markdown files from docs folder
+          cp docs/ARCHITECTURE.md _site/ARCHITECTURE.md 2>/dev/null || echo "Warning: ARCHITECTURE.md not found"
+          cp docs/FEATURES.md _site/FEATURES.md 2>/dev/null || echo "Warning: FEATURES.md not found"
+          cp docs/USAGE.md _site/USAGE.md 2>/dev/null || echo "Warning: USAGE.md not found"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
