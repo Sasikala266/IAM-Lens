@@ -1,48 +1,885 @@
-"""Dummy IAM Scanner Lambda Function"""
-
+import boto3
 import json
-import os
-from datetime import datetime
+import re
+import time
+from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
+from collections import defaultdict
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
+iam = boto3.client("iam")
+s3 = boto3.client("s3")
+sts = boto3.client("sts")
+cloudtrail = boto3.client("cloudtrail")
 
 def lambda_handler(event, context):
-    """
-    Lambda handler function - dummy implementation
-    Replace this with actual IAM scanning logic
-    """
-    
-    print("Lambda function invoked")
-    
-    # Get configuration from environment
-    bucket = os.environ.get('S3_BUCKET_NAME', 'not-configured')
-    prefix = os.environ.get('REPORT_PREFIX', 'not-configured')
-    
-    # Dummy scan results
-    scan_time = datetime.utcnow().isoformat()
-    dummy_results = {
-        'scan_timestamp': scan_time,
-        'bucket_configured': bucket,
-        'prefix_configured': prefix,
-        'message': 'This is a dummy implementation',
-        'iam_users_count': 0,
-        'iam_roles_count': 0,
-        'status': 'placeholder'
-    }
-    
-    print(f"Scan completed at {scan_time}")
-    print(f"Results: {json.dumps(dummy_results)}")
-    
-    # TODO: Implement actual IAM scanning logic
-    # TODO: Use boto3 to query IAM resources
-    # TODO: Generate comprehensive audit report
-    # TODO: Upload report to S3 bucket
-    
-    response = {
-        'statusCode': 200,
-        'body': json.dumps({
-            'message': 'Dummy IAM scanner executed successfully',
-            'data': dummy_results
+    role_names = event.get("role_names", [])
+    output_bucket = event["output_bucket"]
+    output_prefix = event.get("output_prefix", "iam-audit-reports")
+    include_last_access = event.get("include_last_access", True)
+    include_cloudtrail_usage = event.get("include_cloudtrail_usage", True)
+    cloudtrail_lookup_days = int(event.get("cloudtrail_lookup_days", 90))
+    cloudtrail_lookup_days = min(cloudtrail_lookup_days, 90)
+    cloudtrail_max_pages = int(event.get("cloudtrail_max_pages", 5))
+    account_id = sts.get_caller_identity()["Account"]
+    generated_reports = []
+    if not role_names:
+        return {
+            "status": "failed",
+            "message": "Please provide at least one role name in role_names"
+        }
+    for role_name in role_names:
+        print(f"Processing role: {role_name}")
+        role_result = audit_role(account_id, role_name)
+        detailed_rows = role_result["detailed_rows"]
+        risk_rows = role_result["risk_rows"]
+        role_arn = role_result["role_arn"]
+        service_summary_rows = build_service_summary(detailed_rows)
+        if include_last_access and role_arn:
+            last_access_rows = get_last_access_details(
+                account_id=account_id,
+                role_name=role_name,
+                role_arn=role_arn
+            )
+        else:
+            last_access_rows = [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "RoleArn": role_arn or "",
+                "ServiceName": "",
+                "ServiceNamespace": "",
+                "ActionName": "",
+                "LastAuthenticated": "",
+                "LastAuthenticatedRegion": "",
+                "LastAuthenticatedEntity": "",
+                "TotalAuthenticatedEntities": "",
+                "Status": "Skipped"
+            }]
+        if include_cloudtrail_usage and role_arn:
+            role_usage_rows = get_role_usage_from_cloudtrail(
+                account_id=account_id,
+                role_name=role_name,
+                role_arn=role_arn,
+                lookup_days=cloudtrail_lookup_days,
+                max_pages=cloudtrail_max_pages
+            )
+        else:
+            role_usage_rows = [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "RoleArn": role_arn or "",
+                "EventTime": "",
+                "EventName": "",
+                "WhoAssumedRole": "",
+                "SourceIdentity": "",
+                "RoleSessionName": "",
+                "SourceIPAddress": "",
+                "UserAgent": "",
+                "AwsRegion": "",
+                "MFAAuthenticated": "",
+                "ErrorCode": "",
+                "Status": "Skipped"
+            }]
+        if not detailed_rows:
+            detailed_rows = [{
+                "AccountId": account_id,
+                "InputType": "Role",
+                "RoleName": role_name,
+                "RoleArn": role_arn or "",
+                "PolicyName": "",
+                "PolicyType": "",
+                "Effect": "",
+                "Service": "",
+                "Action": "",
+                "AccessType": "",
+                "Resource": "",
+                "ResourceLevel": "",
+                "Condition": "",
+                "RiskFlag": "No permissions found or unable to parse policies"
+            }]
+        if not risk_rows:
+            risk_rows = [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "PolicyName": "",
+                "Finding": "No high-risk findings identified by static parser",
+                "Severity": "Info",
+                "Resource": "",
+                "Action": ""
+            }]
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        safe_role_name = sanitize_name(role_name)
+        file_name = f"{safe_role_name}_{account_id}_{timestamp}.xlsx"
+        local_path = f"/tmp/{file_name}"
+        s3_key = f"{output_prefix.rstrip('/')}/{file_name}"
+        write_excel_report(
+            local_path=local_path,
+            detailed_rows=detailed_rows,
+            summary_rows=service_summary_rows,
+            risk_rows=risk_rows,
+            last_access_rows=last_access_rows,
+            role_usage_rows=role_usage_rows
+        )
+        s3.upload_file(local_path, output_bucket, s3_key)
+        generated_reports.append({
+            "role_name": role_name,
+            "role_arn": role_arn,
+            "file_name": file_name,
+            "s3_uri": f"s3://{output_bucket}/{s3_key}",
+            "detailed_permission_rows": len(detailed_rows),
+            "risk_rows": len(risk_rows),
+            "last_access_rows": len(last_access_rows),
+            "cloudtrail_usage_rows": len(role_usage_rows)
         })
+        print(f"Completed report for {role_name}: s3://{output_bucket}/{s3_key}")
+    return {
+        "status": "success",
+        "message": "IAM role governance reports generated successfully",
+        "total_roles_processed": len(generated_reports),
+        "reports": generated_reports
     }
-    
-    return response
+
+def audit_role(account_id, role_name):
+    detailed_rows = []
+    risk_rows = []
+    role_arn = ""
+    try:
+        role_response = iam.get_role(RoleName=role_name)
+        role_arn = role_response["Role"]["Arn"]
+    except Exception as e:
+        return {
+            "role_arn": "",
+            "detailed_rows": [],
+            "risk_rows": [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "PolicyName": "",
+                "Finding": f"Unable to read role: {str(e)}",
+                "Severity": "High",
+                "Resource": "",
+                "Action": ""
+            }]
+        }
+    attached_policies = list_all_attached_role_policies(role_name)
+    for policy in attached_policies:
+        policy_arn = policy["PolicyArn"]
+        policy_name = policy["PolicyName"]
+        policy_rows, policy_risks = audit_managed_policy(
+            account_id=account_id,
+            role_name=role_name,
+            role_arn=role_arn,
+            policy_arn=policy_arn,
+            policy_name_override=policy_name
+        )
+        detailed_rows.extend(policy_rows)
+        risk_rows.extend(policy_risks)
+    inline_policy_names = list_all_role_inline_policies(role_name)
+    for inline_policy_name in inline_policy_names:
+        try:
+            response = iam.get_role_policy(
+                RoleName=role_name,
+                PolicyName=inline_policy_name
+            )
+            policy_document = normalize_policy_document(response["PolicyDocument"])
+            parsed_rows, parsed_risks = parse_policy_document(
+                account_id=account_id,
+                input_type="Role",
+                role_name=role_name,
+                role_arn=role_arn,
+                policy_name=inline_policy_name,
+                policy_type="Inline",
+                policy_document=policy_document
+            )
+            detailed_rows.extend(parsed_rows)
+            risk_rows.extend(parsed_risks)
+        except Exception as e:
+            risk_rows.append({
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "PolicyName": inline_policy_name,
+                "Finding": f"Unable to read inline policy: {str(e)}",
+                "Severity": "High",
+                "Resource": "",
+                "Action": ""
+            })
+    return {
+        "role_arn": role_arn,
+        "detailed_rows": detailed_rows,
+        "risk_rows": risk_rows
+    }
+
+def list_all_attached_role_policies(role_name):
+    policies = []
+    marker = None
+    while True:
+        params = {"RoleName": role_name}
+        if marker:
+            params["Marker"] = marker
+        response = iam.list_attached_role_policies(**params)
+        policies.extend(response.get("AttachedPolicies", []))
+        if response.get("IsTruncated"):
+            marker = response.get("Marker")
+        else:
+            break
+    return policies
+
+def list_all_role_inline_policies(role_name):
+    policies = []
+    marker = None
+    while True:
+        params = {"RoleName": role_name}
+        if marker:
+            params["Marker"] = marker
+        response = iam.list_role_policies(**params)
+        policies.extend(response.get("PolicyNames", []))
+        if response.get("IsTruncated"):
+            marker = response.get("Marker")
+        else:
+            break
+    return policies
+
+def audit_managed_policy(account_id, role_name, role_arn, policy_arn, policy_name_override=None):
+    try:
+        policy_meta = iam.get_policy(PolicyArn=policy_arn)["Policy"]
+        default_version_id = policy_meta["DefaultVersionId"]
+        policy_name = policy_name_override or policy_meta["PolicyName"]
+        version_response = iam.get_policy_version(
+            PolicyArn=policy_arn,
+            VersionId=default_version_id
+        )
+        policy_document = normalize_policy_document(
+            version_response["PolicyVersion"]["Document"]
+        )
+        return parse_policy_document(
+            account_id=account_id,
+            input_type="Role",
+            role_name=role_name,
+            role_arn=role_arn,
+            policy_name=policy_name,
+            policy_type="Managed",
+            policy_document=policy_document
+        )
+    except Exception as e:
+        return [], [{
+            "AccountId": account_id,
+            "RoleName": role_name,
+            "PolicyName": policy_arn,
+            "Finding": f"Unable to read managed policy: {str(e)}",
+            "Severity": "High",
+            "Resource": "",
+            "Action": ""
+        }]
+
+def normalize_policy_document(policy_document):
+    if isinstance(policy_document, str):
+        decoded = unquote(policy_document)
+        return json.loads(decoded)
+    return policy_document
+
+def parse_policy_document(
+    account_id,
+    input_type,
+    role_name,
+    role_arn,
+    policy_name,
+    policy_type,
+    policy_document
+):
+    rows = []
+    risks = []
+    statements = policy_document.get("Statement", [])
+    if isinstance(statements, dict):
+        statements = [statements]
+    for statement in statements:
+        sid = statement.get("Sid", "")
+        effect = statement.get("Effect", "")
+        actions = statement.get("Action", [])
+        not_actions = statement.get("NotAction", [])
+        resources = statement.get("Resource", [])
+        not_resources = statement.get("NotResource", [])
+        condition = statement.get("Condition", {})
+        actions = ensure_list(actions)
+        not_actions = ensure_list(not_actions)
+        resources = ensure_list(resources)
+        not_resources = ensure_list(not_resources)
+        action_items = actions if actions else [f"NOT_ACTION::{item}" for item in not_actions]
+        resource_items = resources if resources else [f"NOT_RESOURCE::{item}" for item in not_resources]
+        if not resource_items:
+            resource_items = [""]
+        for action in action_items:
+            service, action_name = split_action(action)
+            access_type = classify_access_type(service, action_name)
+            full_action = f"{service}:{action_name}" if service != "Unknown" else action_name
+            for resource in resource_items:
+                resource_level = classify_resource_level(service, resource)
+                risk_flag = identify_risk_flag(
+                    effect=effect,
+                    service=service,
+                    action_name=action_name,
+                    resource=resource,
+                    condition=condition
+                )
+                row = {
+                    "AccountId": account_id,
+                    "InputType": input_type,
+                    "RoleName": role_name,
+                    "RoleArn": role_arn,
+                    "PolicyName": policy_name,
+                    "PolicyType": policy_type,
+                    "StatementSid": sid,
+                    "Effect": effect,
+                    "Service": service,
+                    "Action": action_name,
+                    "FullAction": full_action,
+                    "AccessType": access_type,
+                    "Resource": resource,
+                    "ResourceLevel": resource_level,
+                    "Condition": json.dumps(condition) if condition else "",
+                    "RiskFlag": risk_flag
+                }
+                rows.append(row)
+                if risk_flag:
+                    risks.append({
+                        "AccountId": account_id,
+                        "RoleName": role_name,
+                        "PolicyName": policy_name,
+                        "Finding": risk_flag,
+                        "Severity": classify_risk_severity(risk_flag),
+                        "Resource": resource,
+                        "Action": full_action
+                    })
+    return rows, risks
+
+def ensure_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+def split_action(action):
+    if action.startswith("NOT_ACTION::"):
+        clean_action = action.replace("NOT_ACTION::", "")
+        if ":" in clean_action:
+            service, action_name = clean_action.split(":", 1)
+            return f"NotAction-{service}", action_name
+        return "NotAction-Unknown", clean_action
+    if ":" in action:
+        service, action_name = action.split(":", 1)
+        return service, action_name
+    return "Unknown", action
+
+def classify_access_type(service, action_name):
+    action_lower = action_name.lower()
+    if action_name == "*":
+        return "Admin"
+    if "*" in action_name:
+        return "Wildcard"
+    read_prefixes = [
+        "get", "describe", "query", "scan", "batchget", "read",
+        "lookup", "select", "head", "receive"
+    ]
+    list_prefixes = [
+        "list"
+    ]
+    write_prefixes = [
+        "put", "create", "update", "modify", "attach", "detach",
+        "start", "stop", "restart", "run", "invoke", "send", "publish",
+        "tag", "untag", "batchwrite", "copy", "restore"
+    ]
+    delete_prefixes = [
+        "delete", "remove", "terminate", "purge"
+    ]
+    permission_prefixes = [
+        "assume", "passrole", "grant", "revoke", "authorize",
+        "addrole", "createrole", "putrolepolicy", "attachrolepolicy"
+    ]
+    for prefix in delete_prefixes:
+        if action_lower.startswith(prefix):
+            return "Delete"
+    for prefix in list_prefixes:
+        if action_lower.startswith(prefix):
+            return "List"
+    for prefix in read_prefixes:
+        if action_lower.startswith(prefix):
+            return "Read"
+    for prefix in write_prefixes:
+        if action_lower.startswith(prefix):
+            return "Write"
+    for prefix in permission_prefixes:
+        if action_lower.startswith(prefix):
+            return "PermissionManagement"
+    if service == "iam":
+        return "PermissionManagement"
+    return "Other"
+
+def classify_resource_level(service, resource):
+    if resource == "*":
+        return "Account/Wildcard"
+    if resource.startswith("NOT_RESOURCE::"):
+        return "NotResource"
+    if service == "s3":
+        return classify_s3_resource(resource)
+    if service == "dynamodb":
+        if ":table/" in resource and "/index/" in resource:
+            return "DynamoDB Index Level"
+        if ":table/" in resource:
+            return "DynamoDB Table Level"
+        return "DynamoDB Resource Level"
+    if service == "lambda":
+        if ":function:" in resource:
+            return "Lambda Function Level"
+        return "Lambda Resource Level"
+    if service == "sqs":
+        return "SQS Queue Level"
+    if service == "sns":
+        return "SNS Topic Level"
+    if service == "kms":
+        return "KMS Key Level"
+    if service == "secretsmanager":
+        return "Secret Level"
+    if service == "logs":
+        if ":log-group:" in resource:
+            return "CloudWatch Log Group Level"
+        return "CloudWatch Logs Resource Level"
+    if service == "glue":
+        return "Glue Resource Level"
+    if service == "athena":
+        return "Athena Resource Level"
+    if service == "rds":
+        return "RDS Resource Level"
+    if service == "ec2":
+        return "EC2 Resource Level"
+    if resource.startswith("arn:"):
+        return "Resource ARN Level"
+    return "Unknown/Global"
+
+def classify_s3_resource(resource):
+    if resource == "*":
+        return "S3 Account/Wildcard"
+    bucket_only_pattern = r"^arn:aws:s3:::[^/]+$"
+    object_or_prefix_pattern = r"^arn:aws:s3:::[^/]+/.+"
+    if re.match(bucket_only_pattern, resource):
+        return "S3 Bucket Level"
+    if re.match(object_or_prefix_pattern, resource):
+        if resource.endswith("/*"):
+            return "S3 Prefix/Folder Level"
+        return "S3 Object Level"
+    return "S3 Resource Level"
+
+def identify_risk_flag(effect, service, action_name, resource, condition):
+    if effect == "Deny":
+        return ""
+    full_action = f"{service}:{action_name}".lower()
+    if action_name == "*":
+        return "Full admin or service-level wildcard action"
+    if "*" in action_name and resource == "*":
+        return "Wildcard action with wildcard resource"
+    if resource == "*":
+        return "Wildcard resource access"
+    if full_action in ["iam:passrole", "sts:assumerole"]:
+        return "Sensitive role delegation permission"
+    if service == "iam" and "*" in action_name:
+        return "IAM wildcard permission"
+    sensitive_delete_actions = [
+        "s3:deletebucket",
+        "s3:deleteobject",
+        "kms:schedulekeydeletion",
+        "secretsmanager:deletesecret",
+        "rds:deletedbinstance",
+        "dynamodb:deletetable",
+        "lambda:deletefunction"
+    ]
+    if full_action in sensitive_delete_actions:
+        return "Sensitive delete permission"
+    if condition:
+        return ""
+    return ""
+
+def classify_risk_severity(risk_flag):
+    risk_lower = risk_flag.lower()
+    high_keywords = [
+        "admin",
+        "wildcard action with wildcard resource",
+        "iam wildcard",
+        "role delegation"
+    ]
+    medium_keywords = [
+        "wildcard resource",
+        "delete permission"
+    ]
+    for keyword in high_keywords:
+        if keyword in risk_lower:
+            return "High"
+    for keyword in medium_keywords:
+        if keyword in risk_lower:
+            return "Medium"
+    return "Low"
+
+def build_service_summary(detailed_rows):
+    summary = defaultdict(lambda: {
+        "Read": "No",
+        "Write": "No",
+        "List": "No",
+        "Delete": "No",
+        "Admin": "No",
+        "Wildcard": "No",
+        "PermissionManagement": "No",
+        "Other": "No",
+        "Resources": set(),
+        "Actions": set()
+    })
+    for row in detailed_rows:
+        key = (
+            row.get("AccountId", ""),
+            row.get("RoleName", ""),
+            row.get("PolicyName", ""),
+            row.get("Service", "")
+        )
+        access_type = row.get("AccessType", "Other")
+        resource = row.get("Resource", "")
+        full_action = row.get("FullAction", "")
+        if access_type in summary:
+            summary[key][access_type] = "Yes"
+        else:
+            summary[key]["Other"] = "Yes"
+        if resource:
+            summary[key]["Resources"].add(resource)
+        if full_action:
+            summary[key]["Actions"].add(full_action)
+    rows = []
+    for (account_id, role_name, policy_name, service), values in summary.items():
+        rows.append({
+            "AccountId": account_id,
+            "RoleName": role_name,
+            "PolicyName": policy_name,
+            "Service": service,
+            "Read": values["Read"],
+            "Write": values["Write"],
+            "List": values["List"],
+            "Delete": values["Delete"],
+            "Admin": values["Admin"],
+            "Wildcard": values["Wildcard"],
+            "PermissionManagement": values["PermissionManagement"],
+            "Other": values["Other"],
+            "ActionCount": len(values["Actions"]),
+            "ResourceCount": len(values["Resources"])
+        })
+    return rows
+
+def get_last_access_details(account_id, role_name, role_arn):
+    rows = []
+    try:
+        generate_response = iam.generate_service_last_accessed_details(
+            Arn=role_arn,
+            Granularity="ACTION_LEVEL"
+        )
+        job_id = generate_response["JobId"]
+        response = None
+        for _ in range(10):
+            response = iam.get_service_last_accessed_details(JobId=job_id)
+            if response.get("JobStatus") in ["COMPLETED", "FAILED"]:
+                break
+            time.sleep(1)
+        if not response:
+            return [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "RoleArn": role_arn,
+                "ServiceName": "",
+                "ServiceNamespace": "",
+                "ActionName": "",
+                "LastAuthenticated": "",
+                "LastAuthenticatedRegion": "",
+                "LastAuthenticatedEntity": "",
+                "TotalAuthenticatedEntities": "",
+                "Status": "No response from IAM last accessed API"
+            }]
+        if response.get("JobStatus") != "COMPLETED":
+            return [{
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "RoleArn": role_arn,
+                "ServiceName": "",
+                "ServiceNamespace": "",
+                "ActionName": "",
+                "LastAuthenticated": "",
+                "LastAuthenticatedRegion": "",
+                "LastAuthenticatedEntity": "",
+                "TotalAuthenticatedEntities": "",
+                "Status": f"Job status: {response.get('JobStatus')}"
+            }]
+        while True:
+            services = response.get("ServicesLastAccessed", [])
+            for service in services:
+                tracked_actions = service.get("TrackedActionsLastAccessed", [])
+                if tracked_actions:
+                    for tracked_action in tracked_actions:
+                        rows.append({
+                            "AccountId": account_id,
+                            "RoleName": role_name,
+                            "RoleArn": role_arn,
+                            "ServiceName": service.get("ServiceName", ""),
+                            "ServiceNamespace": service.get("ServiceNamespace", ""),
+                            "ActionName": tracked_action.get("ActionName", ""),
+                            "LastAuthenticated": str(tracked_action.get("LastAccessedTime", "")),
+                            "LastAuthenticatedRegion": service.get("LastAuthenticatedRegion", ""),
+                            "LastAuthenticatedEntity": service.get("LastAuthenticatedEntity", ""),
+                            "TotalAuthenticatedEntities": service.get("TotalAuthenticatedEntities", ""),
+                            "Status": "Completed"
+                        })
+                else:
+                    rows.append({
+                        "AccountId": account_id,
+                        "RoleName": role_name,
+                        "RoleArn": role_arn,
+                        "ServiceName": service.get("ServiceName", ""),
+                        "ServiceNamespace": service.get("ServiceNamespace", ""),
+                        "ActionName": "",
+                        "LastAuthenticated": str(service.get("LastAuthenticated", "")),
+                        "LastAuthenticatedRegion": service.get("LastAuthenticatedRegion", ""),
+                        "LastAuthenticatedEntity": service.get("LastAuthenticatedEntity", ""),
+                        "TotalAuthenticatedEntities": service.get("TotalAuthenticatedEntities", ""),
+                        "Status": "Completed"
+                    })
+            marker = response.get("Marker")
+            if response.get("IsTruncated") and marker:
+                response = iam.get_service_last_accessed_details(
+                    JobId=job_id,
+                    Marker=marker
+                )
+            else:
+                break
+        if not rows:
+            rows.append({
+                "AccountId": account_id,
+                "RoleName": role_name,
+                "RoleArn": role_arn,
+                "ServiceName": "",
+                "ServiceNamespace": "",
+                "ActionName": "",
+                "LastAuthenticated": "",
+                "LastAuthenticatedRegion": "",
+                "LastAuthenticatedEntity": "",
+                "TotalAuthenticatedEntities": "",
+                "Status": "No last accessed details returned"
+            })
+        return rows
+    except Exception as e:
+        return [{
+            "AccountId": account_id,
+            "RoleName": role_name,
+            "RoleArn": role_arn,
+            "ServiceName": "",
+            "ServiceNamespace": "",
+            "ActionName": "",
+            "LastAuthenticated": "",
+            "LastAuthenticatedRegion": "",
+            "LastAuthenticatedEntity": "",
+            "TotalAuthenticatedEntities": "",
+            "Status": f"Error: {str(e)}"
+        }]
+
+def get_role_usage_from_cloudtrail(account_id, role_name, role_arn, lookup_days, max_pages):
+    rows = []
+    event_names = [
+        "AssumeRole",
+        "AssumeRoleWithSAML",
+        "AssumeRoleWithWebIdentity"
+    ]
+    start_time = datetime.now(timezone.utc) - timedelta(days=lookup_days)
+    end_time = datetime.now(timezone.utc)
+    for event_name in event_names:
+        next_token = None
+        page_count = 0
+        while True:
+            params = {
+                "LookupAttributes": [
+                    {
+                        "AttributeKey": "EventName",
+                        "AttributeValue": event_name
+                    }
+                ],
+                "StartTime": start_time,
+                "EndTime": end_time,
+                "MaxResults": 50
+            }
+            if next_token:
+                params["NextToken"] = next_token
+            try:
+                response = cloudtrail.lookup_events(**params)
+            except Exception as e:
+                rows.append({
+                    "AccountId": account_id,
+                    "RoleName": role_name,
+                    "RoleArn": role_arn,
+                    "EventTime": "",
+                    "EventName": event_name,
+                    "WhoAssumedRole": "",
+                    "SourceIdentity": "",
+                    "RoleSessionName": "",
+                    "SourceIPAddress": "",
+                    "UserAgent": "",
+                    "AwsRegion": "",
+                    "MFAAuthenticated": "",
+                    "ErrorCode": "",
+                    "Status": f"Error reading CloudTrail: {str(e)}"
+                })
+                break
+            events = response.get("Events", [])
+            for event in events:
+                parsed_row = parse_cloudtrail_assume_role_event(
+                    account_id=account_id,
+                    target_role_name=role_name,
+                    target_role_arn=role_arn,
+                    event=event
+                )
+                if parsed_row:
+                    rows.append(parsed_row)
+            next_token = response.get("NextToken")
+            page_count += 1
+            if not next_token or page_count >= max_pages:
+                break
+            time.sleep(0.6)
+    if not rows:
+        rows.append({
+            "AccountId": account_id,
+            "RoleName": role_name,
+            "RoleArn": role_arn,
+            "EventTime": "",
+            "EventName": "",
+            "WhoAssumedRole": "",
+            "SourceIdentity": "",
+            "RoleSessionName": "",
+            "SourceIPAddress": "",
+            "UserAgent": "",
+            "AwsRegion": "",
+            "MFAAuthenticated": "",
+            "ErrorCode": "",
+            "Status": f"No AssumeRole activity found in last {lookup_days} days by LookupEvents"
+        })
+    return rows
+
+def parse_cloudtrail_assume_role_event(account_id, target_role_name, target_role_arn, event):
+    try:
+        raw_event = json.loads(event.get("CloudTrailEvent", "{}"))
+        request_params = raw_event.get("requestParameters", {}) or {}
+        response_elements = raw_event.get("responseElements", {}) or {}
+        user_identity = raw_event.get("userIdentity", {}) or {}
+        session_context = user_identity.get("sessionContext", {}) or {}
+        session_attributes = session_context.get("attributes", {}) or {}
+        request_role_arn = request_params.get("roleArn", "")
+        role_session_name = request_params.get("roleSessionName", "")
+        assumed_role_user = response_elements.get("assumedRoleUser", {}) or {}
+        assumed_role_arn = assumed_role_user.get("arn", "")
+        matched = False
+        if request_role_arn == target_role_arn:
+            matched = True
+        if f":assumed-role/{target_role_name}/" in assumed_role_arn:
+            matched = True
+        if not matched:
+            return None
+        source_identity = (
+            request_params.get("sourceIdentity")
+            or session_context.get("sourceIdentity")
+            or ""
+        )
+        who_assumed_role = (
+            user_identity.get("arn")
+            or user_identity.get("principalId")
+            or event.get("Username", "")
+        )
+        return {
+            "AccountId": account_id,
+            "RoleName": target_role_name,
+            "RoleArn": target_role_arn,
+            "EventTime": str(event.get("EventTime", "")),
+            "EventName": raw_event.get("eventName", event.get("EventName", "")),
+            "WhoAssumedRole": who_assumed_role,
+            "SourceIdentity": source_identity,
+            "RoleSessionName": role_session_name,
+            "SourceIPAddress": raw_event.get("sourceIPAddress", ""),
+            "UserAgent": raw_event.get("userAgent", ""),
+            "AwsRegion": raw_event.get("awsRegion", ""),
+            "MFAAuthenticated": session_attributes.get("mfaAuthenticated", ""),
+            "ErrorCode": raw_event.get("errorCode", ""),
+            "Status": "Matched"
+        }
+    except Exception as e:
+        return {
+            "AccountId": account_id,
+            "RoleName": target_role_name,
+            "RoleArn": target_role_arn,
+            "EventTime": str(event.get("EventTime", "")),
+            "EventName": event.get("EventName", ""),
+            "WhoAssumedRole": event.get("Username", ""),
+            "SourceIdentity": "",
+            "RoleSessionName": "",
+            "SourceIPAddress": "",
+            "UserAgent": "",
+            "AwsRegion": "",
+            "MFAAuthenticated": "",
+            "ErrorCode": "",
+            "Status": f"Unable to parse CloudTrail event: {str(e)}"
+        }
+
+def write_excel_report(
+    local_path,
+    detailed_rows,
+    summary_rows,
+    risk_rows,
+    last_access_rows,
+    role_usage_rows
+):
+    wb = Workbook()
+    default_sheet = wb.active
+    wb.remove(default_sheet)
+    add_sheet(wb, "Detailed Permissions", detailed_rows)
+    add_sheet(wb, "Service Summary", summary_rows)
+    add_sheet(wb, "Risk Findings", risk_rows)
+    add_sheet(wb, "Last Access", last_access_rows)
+    add_sheet(wb, "Role Usage CloudTrail", role_usage_rows)
+    wb.save(local_path)
+
+def add_sheet(wb, sheet_name, rows):
+    ws = wb.create_sheet(title=sheet_name)
+    if not rows:
+        rows = [{"Status": "No data"}]
+    headers = list(rows[0].keys())
+    header_fill = PatternFill(
+        start_color="1F4E78",
+        end_color="1F4E78",
+        fill_type="solid"
+    )
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_index, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_index, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    for row_index, row in enumerate(rows, start=2):
+        for col_index, header in enumerate(headers, start=1):
+            value = row.get(header, "")
+            ws.cell(row=row_index, column=col_index, value=value)
+    ws.freeze_panes = "A2"
+    for col_index, header in enumerate(headers, start=1):
+        column_letter = get_column_letter(col_index)
+        max_length = len(str(header))
+        for row_index in range(2, min(ws.max_row + 1, 200)):
+            cell_value = ws.cell(row=row_index, column=col_index).value
+            if cell_value is not None:
+                max_length = max(max_length, len(str(cell_value)))
+        ws.column_dimensions[column_letter].width = min(max_length + 2, 80)
+
+def sanitize_name(name):
+    safe_name = (
+        name
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace(" ", "_")
+        .replace(":", "_")
+    )
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", safe_name)
+    return safe_name
