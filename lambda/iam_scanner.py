@@ -184,7 +184,6 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
             "cloudtrail_usage_rows": len(role_usage_rows)
         })
         print(f"Completed report for {role_name}: s3://{output_bucket}/{s3_key}")
-    return {
     except Exception as e:
         print(f"Error processing role {role_name}: {str(e)}")
         generated_reports.append({
@@ -339,10 +338,12 @@ def audit_standalone_policy(account_id, policy_arn):
             "Action": ""
         })
     
+    return {
         "status": "success",
         "policy_name": policy_name or policy_arn,
         "detailed_rows": detailed_rows,
         "risk_rows": risk_rows
+    }
 
 def audit_role(account_id, role_name):
     detailed_rows = []
