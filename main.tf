@@ -120,6 +120,8 @@ resource "aws_lambda_function" "iam_scanner" {
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
 
+  layers = ["arn:aws:lambda:${var.aws_region}:336392948345:layer:AWSSDKPandas-Python311:35"]
+
   ephemeral_storage {
     size = var.lambda_ephemeral_storage
   }
