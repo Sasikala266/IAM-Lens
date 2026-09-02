@@ -31,7 +31,7 @@ variable "lambda_ephemeral_storage" {
 variable "s3_bucket_name" {
   description = "Name of the S3 bucket for audit reports"
   type        = string
-  default     = "sasi-audit-report-bucket"
+  default     = "sasi-audit-reports-bucket"
 }
 
 variable "s3_report_prefix" {
