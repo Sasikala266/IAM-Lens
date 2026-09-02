@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔍 IAM Audit Utility
+# 🔍 IAM Lens
 
 ### Automated IAM Role & Policy Auditing for AWS
 
@@ -82,11 +82,11 @@ You would need to:
 
 ### Automated, Comprehensive IAM Auditing in Minutes
 
-**IAM Audit Utility** is a serverless AWS solution that automates the entire IAM auditing process, generating comprehensive Excel reports with actionable insights.
+**IAM Lens** is a serverless AWS solution that automates the entire IAM auditing process, generating comprehensive Excel reports with actionable insights.
 
 #### ✨ Key Benefits
 
-| Manual Approach | IAM Audit Utility |
+| Manual Approach | IAM Lens |
 |----------------|-------------------|
 | ⏱️ **30-60 minutes** per role | ⚡ **2-3 minutes** per role |
 | 🖱️ Multiple console tabs | 📊 Single Excel report |
@@ -138,7 +138,7 @@ You would need to:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    IAM Audit Utility Flow                     │
+│                    IAM Lens                                  │
 └──────────────────────────────────────────────────────────────┘
 
   👤 User / ⏰ Scheduler
@@ -252,7 +252,7 @@ For detailed feature documentation, see [Features Guide](docs/features.md).
 **1️⃣ Deploy the Infrastructure**
 ```bash
 git clone <repository-url>
-cd iam-audit-utility
+cd iam-lens
 terraform init
 terraform apply
 ```
@@ -267,8 +267,8 @@ aws lambda invoke \
 
 **3️⃣ Download the Report**
 ```bash
-aws s3 ls s3://audit-reports-bucket/iam-audit-reports/
-aws s3 cp s3://audit-reports-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
+aws s3 ls s3://your-s3-bucket/iam-audit-reports/
+aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
 ```
 
 **That's it!** Open the Excel file and review your audit.
@@ -310,7 +310,7 @@ Sheet: Risk Findings
 
 ## 🎥 Video Tutorials
 
-Step-by-step video guides for deploying and using the IAM Audit Utility.
+Step-by-step video guides for deploying and using the IAM Lens.
 
 👉 [Watch Video Tutorials](docs/videos.md)
 
