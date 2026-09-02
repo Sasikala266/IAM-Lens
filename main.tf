@@ -58,8 +58,8 @@ resource "aws_iam_policy" "lambda_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::sasi-audit-reports-bucket",
-          "arn:aws:s3:::sasi-audit-reports-bucket/*"
+          "arn:aws:s3:::${var.s3_bucket_name}",
+          "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
       },
       {
@@ -128,8 +128,8 @@ resource "aws_lambda_function" "iam_scanner" {
 
   environment {
     variables = {
-      S3_BUCKET_NAME = "sasi-audit-report-bucket"
-      REPORT_PREFIX  = "iam-audit-reports"
+      S3_BUCKET_NAME = var.s3_bucket_name
+      REPORT_PREFIX  = var.s3_report_prefix
     }
   }
 
@@ -146,7 +146,7 @@ resource "aws_lambda_function" "iam_scanner" {
 # CloudWatch Log Group for Lambda
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.lambda_function_name}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
 
   tags = var.tags
 }
