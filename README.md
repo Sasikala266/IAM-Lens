@@ -1,103 +1,263 @@
-# IAM Audit Utility (IAM-Lens)
+<div align="center">
 
-> **Automated IAM Role & Policy Auditing Solution for AWS**
+# 🔍 IAM Audit Utility
 
-[![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.0-623CE4?logo=terraform)](https://www.terraform.io/)
-[![AWS](https://img.shields.io/badge/AWS-Lambda%20%7C%20S3%20%7C%20IAM-FF9900?logo=amazon-aws)](https://aws.amazon.com/)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python)](https://www.python.org/)
+### Automated IAM Role & Policy Auditing for AWS
 
-## Overview
+![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)
+![Serverless](https://img.shields.io/badge/Serverless-FD5750?style=for-the-badge&logo=serverless&logoColor=white)
 
-This project deploys an AWS Lambda function that scans IAM resources and generates audit reports. The reports are stored in an S3 bucket for analysis and compliance purposes.
+**[Getting Started](docs/getting-started.md)** • **[Features](docs/features.md)** • **[Architecture](docs/architecture.md)** • **[Usage Guide](docs/usage-guide.md)** • **[Videos](docs/videos.md)**
 
-## Architecture
-
-The Terraform configuration creates the following resources:
-
-### Key Questions Answered
-
-During IAM access audits, you need answers to:
-- ✅ **Which resources** can access **what services**?
-- ✅ **What actions** are permitted?
-- ✅ **What resource-level** constraints exist?
-- ✅ **What security risks** are present (wildcards, overly permissive access)?
-- ✅ **When** were permissions last used?
-
-This utility provides **all answers in one place** with near-zero operational cost.
+</div>
 
 ---
 
-## Features
+## 📋 Table of Contents
 
-### 📊 Comprehensive Excel Reports
-
-Each audit generates a **5-sheet Excel workbook** containing:
-
-1. **Role Details** - High-level role configuration and metadata
-2. **Detailed Permissions** - Granular breakdown of every permission (policies, services, actions, resources)
-3. **Service Summary** - Access level aggregation (Read/Write/List/Delete/Admin per service)
-4. **Risk Findings** - Security risk identification (wildcards, sensitive access, PassRole, etc.)
-5. **Last Access** - Usage tracking via AWS Access Advisor
-
-### 🔒 Built-in Security Analysis
-
-Automatically detects:
-- **Wildcard Permissions** (`*` in actions or resources)
-- **Write & Delete Access** on critical services
-- **PassRole Permissions** (privilege escalation risks)
-- **Sensitive Service Access** (IAM, KMS, Secrets Manager, etc.)
-- **Resource Constraint Violations** (overly broad access)
-- **Cross-Account Access** patterns
-
-### 💰 Near-Zero Cost Architecture
-
-- ❌ No API Gateway
-- ❌ No databases (RDS/DynamoDB)
-- ❌ No running servers
-- ✅ Pure serverless (Lambda + S3 only)
-- ✅ Estimated cost: **< $1/month** for typical usage
+- [🎯 The Problem](#-the-problem)
+- [💡 The Solution](#-the-solution)
+- [🏗️ Architecture Overview](#️-architecture-overview)
+- [📊 What You Get](#-what-you-get)
+- [🚀 Quick Start](#-quick-start)
+- [📸 Sample Output](#-sample-output)
+- [🎥 Video Tutorials](#-video-tutorials)
+- [📚 Documentation](#-documentation)
+- [💰 Cost](#-cost)
+- [🔒 Security](#-security)
+- [📖 Glossary](#-glossary)
 
 ---
 
-## Quick Start
+## 🎯 The Problem
 
-## Prerequisites
+### Manual IAM Auditing is Time-Consuming and Error-Prone
 
-- Terraform >= 1.0
-- AWS CLI configured with appropriate credentials
-- AWS account with permissions to create Lambda, IAM, and S3 resources
+AWS Identity and Access Management (IAM) is crucial for cloud security, but auditing IAM roles and policies manually is challenging:
 
-## Directory Structure
+**⏰ Time-Intensive Process**
+- Reviewing a single IAM role requires navigating multiple AWS console pages
+- Understanding what permissions are granted involves reading complex JSON policy documents
+- Checking when permissions were last used requires accessing IAM Access Advisor
+- Analyzing security risks demands expertise in AWS security best practices
+
+**🔍 Multiple Tools Required**
+- **IAM Console**: View roles and attached policies
+- **Policy Simulator**: Test policy effects
+- **CloudTrail**: Track API usage
+- **Access Advisor**: Check last accessed services
+- **Access Analyzer**: Identify security findings
+
+**❌ Common Challenges**
+- **Lack of Visibility**: Hard to see all permissions in one place
+- **Complex Policies**: JSON policy documents are difficult to parse
+- **Compliance Gaps**: Manual audits miss security risks
+- **No Historical Records**: Point-in-time snapshots with no audit trail
+- **Resource Constraints**: Security teams overwhelmed with manual reviews
+
+**🌐 Real-World Scenario**
+
+Imagine you're a cloud security engineer asked to:
+> *"Audit our Lambda execution role to ensure it follows least-privilege principles and identify any security risks."*
+
+You would need to:
+1. Open IAM Console → Find the role
+2. Review trust policy → Understand who can assume it
+3. Check all attached managed policies → AWS and custom
+4. Review inline policies → Embedded permissions
+5. Parse JSON documents → Identify specific permissions
+6. Classify actions → Read, write, delete, admin access
+7. Check Access Advisor → When were services last used
+8. Identify risks → Wildcards, overly permissive actions
+9. Document findings → Create report for stakeholders
+10. Repeat for every role in your environment
+
+**This process can take 30-60 minutes per role!**
+
+---
+
+## 💡 The Solution
+
+### Automated, Comprehensive IAM Auditing in Minutes
+
+**IAM Audit Utility** is a serverless AWS solution that automates the entire IAM auditing process, generating comprehensive Excel reports with actionable insights.
+
+#### ✨ Key Benefits
+
+| Manual Approach | IAM Audit Utility |
+|----------------|-------------------|
+| ⏱️ **30-60 minutes** per role | ⚡ **2-3 minutes** per role |
+| 🖱️ Multiple console tabs | 📊 Single Excel report |
+| 🧠 Requires deep IAM expertise | 📖 Easy-to-read categorized data |
+| ❌ Prone to human error | ✅ Consistent and accurate |
+| 📝 Manual documentation | 🤖 Automated report generation |
+| 🔍 Hard to find security risks | 🚨 Built-in risk detection |
+| 💾 No historical tracking | 📈 S3-stored audit history |
+
+#### 🎯 What It Does
+
+1. **Extracts IAM Data** 
+   - Retrieves role details, policies, and permissions via AWS APIs
+   - Fetches both managed policies (AWS/custom) and inline policies
+   - Gathers last access information from IAM Access Advisor
+
+2. **Analyzes Permissions**
+   - Parses complex JSON policy documents
+   - Classifies actions by type: Read, Write, List, Delete, Admin
+   - Identifies AWS services that can be accessed
+   - Detects resource-level constraints and conditions
+
+3. **Identifies Security Risks**
+   - Wildcard permissions (`*:*`, `s3:*`, etc.)
+   - Overly permissive resource access (`Resource: "*"`)
+   - Sensitive service access (IAM, KMS, Secrets Manager)
+   - Privilege escalation vectors (`iam:PassRole`)
+   - Unused permissions (never accessed in X days)
+
+4. **Generates Excel Reports**
+   - 5 detailed worksheets covering different aspects
+   - Professional formatting with color-coded risk levels
+   - Ready to share with stakeholders and compliance teams
+   - Stored in S3 with version history
+
+#### 🌟 Who Benefits
+
+- **Cloud Security Engineers**: Conduct faster, more thorough IAM audits
+- **Compliance Teams**: Generate audit reports for regulatory requirements
+- **DevOps Teams**: Validate least-privilege principles in automation
+- **Security Auditors**: Assess IAM configurations across multiple accounts
+- **Platform Engineers**: Monitor and review IAM roles at scale
+
+---
+
+## 🏗️ Architecture Overview
+
+### Serverless, Simple, and Secure
 
 ```
-.
-├── main.tf              # Main Terraform configuration
-├── variables.tf         # Input variables
-├── outputs.tf          # Output values
-├── versions.tf         # Terraform version constraints
-├── lambda/
-│   ├── iam_scanner.py  # Lambda function code (dummy implementation)
-│   └── requirements.txt # Python dependencies
-└── README.md           # This file
+┌──────────────────────────────────────────────────────────────┐
+│                    IAM Audit Utility Flow                     │
+└──────────────────────────────────────────────────────────────┘
+
+  👤 User / ⏰ Scheduler
+         │
+         │ 1️⃣ Invoke with role name
+         │    {"role_name": "MyAppRole"}
+         ▼
+  ┌─────────────────────────────────────────┐
+  │      🐍 AWS Lambda Function             │
+  │      (Python 3.11 - Serverless)         │
+  │                                          │
+  │  ┌────────────────────────────────────┐ │
+  │  │ 📥 Fetch IAM Data (boto3)         │ │
+  │  │  • Role details & trust policy    │ │
+  │  │  • Managed policies (AWS/Custom)  │ │
+  │  │  • Inline policies                │ │
+  │  │  • Last access information        │ │
+  │  └────────────────────────────────────┘ │
+  │             │                            │
+  │             ▼                            │
+  │  ┌────────────────────────────────────┐ │
+  │  │ 🔍 Analyze & Classify              │ │
+  │  │  • Parse policy JSON               │ │
+  │  │  • Classify actions & services     │ │
+  │  │  • Detect security risks           │ │
+  │  │  • Identify unused permissions     │ │
+  │  └────────────────────────────────────┘ │
+  │             │                            │
+  │             ▼                            │
+  │  ┌────────────────────────────────────┐ │
+  │  │ 📊 Generate Excel Report           │ │
+  │  │  • 5 worksheets                    │ │
+  │  │  • Formatted & color-coded         │ │
+  │  └────────────────────────────────────┘ │
+  └───────────────┬────────────────────────┘
+                  │
+                  │ 2️⃣ Upload report
+                  ▼
+          ┌───────────────────┐
+          │  🗄️ Amazon S3     │
+          │  Audit Reports    │
+          │  ┌─────────────┐  │
+          │  │ role1.xlsx  │  │
+          │  │ role2.xlsx  │  │
+          │  └─────────────┘  │
+          └───────────────────┘
+                  │
+                  │ 3️⃣ Download & review
+                  ▼
+            👤 Security Team
 ```
 
-## Usage
+### 🔧 Components
 
-### Deploy in 3 Steps
+- **AWS Lambda**: Serverless compute (Python 3.11, 512MB RAM, 5-min timeout)
+- **Amazon S3**: Secure storage for generated reports (encrypted, versioned)
+- **IAM Role**: Read-only permissions to query IAM resources
+- **boto3 SDK**: AWS API interactions
+- **openpyxl**: Excel file generation
 
+> 💡 **No servers to manage, no databases to maintain, no APIs to expose**
+
+For detailed architecture documentation, see [Architecture Guide](docs/architecture.md).
+
+---
+
+## 📊 What You Get
+
+### Comprehensive Excel Report with 5 Worksheets
+
+#### 📄 **Sheet 1: Role Details**
+High-level role information: ARN, creation date, trust policy, last used, tags
+
+#### 🔐 **Sheet 2: Detailed Permissions**
+Every permission broken down:
+- Policy name and type (AWS Managed / Custom / Inline)
+- AWS service and action (e.g., `s3:GetObject`)
+- Resource constraints
+- Conditions (IP restrictions, MFA, etc.)
+- Access type classification (Read/Write/Delete/Admin)
+
+#### 📈 **Sheet 3: Service Summary**
+Aggregated view per AWS service:
+- Count of Read/Write/List/Delete/Admin actions
+- Wildcard detection
+- Risk level assessment
+
+#### 🚨 **Sheet 4: Risk Findings**
+Security risks and compliance issues:
+- Wildcard permissions (`*:*`, `s3:*`)
+- Overly permissive resources (`Resource: "*"`)
+- Privilege escalation vectors (`iam:PassRole`)
+- Sensitive service access (IAM, KMS, Secrets Manager)
+- Severity ratings (Low/Medium/High/Critical)
+- Remediation recommendations
+
+#### ⏰ **Sheet 5: Last Access**
+Usage tracking:
+- When each service was last accessed
+- Days since last use
+- Identifies unused permissions (removal candidates)
+
+For detailed feature documentation, see [Features Guide](docs/features.md).
+
+---
+
+## 🚀 Quick Start
+
+### 3 Steps to Your First Audit
+
+**1️⃣ Deploy the Infrastructure**
 ```bash
-# 1. Initialize Terraform
+git clone <repository-url>
+cd iam-audit-utility
 terraform init
-
-# 2. Review deployment plan
-terraform plan
-
-# 3. Deploy infrastructure
 terraform apply
 ```
 
-### Run Your First Audit
-
+**2️⃣ Run an Audit**
 ```bash
 aws lambda invoke \
   --function-name iam-scanner-lambda \
@@ -105,174 +265,176 @@ aws lambda invoke \
   output.json
 ```
 
-### Download the Report
-
+**3️⃣ Download the Report**
 ```bash
-aws s3 cp \
-  s3://audit-reports-bucket/iam-audit-reports/MyApplicationRole-<timestamp>.xlsx \
-  ./audit-report.xlsx
+aws s3 ls s3://audit-reports-bucket/iam-audit-reports/
+aws s3 cp s3://audit-reports-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
+```
+
+**That's it!** Open the Excel file and review your audit.
+
+📖 For detailed instructions, see [Getting Started Guide](docs/getting-started.md).
+
+---
+
+## 📸 Sample Output
+
+### Example: Auditing a Lambda Execution Role
+
+**Input:**
+```json
+{
+  "role_name": "lambda-execution-role"
+}
+```
+
+**Output Report Includes:**
+- ✅ Role has access to **3 AWS services**: S3, DynamoDB, CloudWatch Logs
+- ✅ Total of **47 permissions** granted across managed and inline policies
+- ⚠️ **2 Medium-risk findings**: Wildcard S3 access, no resource-level constraints
+- ⚠️ **1 unused service**: DynamoDB (not accessed in 90 days)
+- ℹ️ **Recommendation**: Remove DynamoDB permissions, add resource constraints to S3
+
+**Report Preview:**
+```
+Sheet: Risk Findings
+┌─────────────────────┬──────────┬─────────┬────────────────────────────────┐
+│ Risk Type           │ Severity │ Service │ Description                     │
+├─────────────────────┼──────────┼─────────┼────────────────────────────────┤
+│ Wildcard Resource   │ Medium   │ S3      │ Access to all S3 buckets       │
+│ Unused Permissions  │ Medium   │ DynamoDB│ Not accessed in 90 days        │
+└─────────────────────┴──────────┴─────────┴────────────────────────────────┘
 ```
 
 ---
 
-## Documentation
+## 🎥 Video Tutorials
 
-### 📚 Complete Documentation Set
+Step-by-step video guides for deploying and using the IAM Audit Utility.
 
-| Document | Description |
-|----------|-------------|
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Detailed system design, data flow, and component specifications |
-| **[FEATURES.md](docs/FEATURES.md)** | Comprehensive feature list and report structure |
-| **[USAGE.md](docs/USAGE.md)** | Step-by-step usage guide with examples |
-| **README.md** | This file - overview and quick start |
+👉 [Watch Video Tutorials](docs/videos.md)
 
 ---
 
-## Usage Examples
+## 📚 Documentation
 
-**Audit a single IAM role:**
-```bash
-aws lambda invoke \
-  --function-name iam-scanner-lambda \
-  --payload '{"role_name": "MyApplicationRole"}' \
-  output.json
-```
+### Core Documentation
 
-For more examples, see [docs/USAGE.md](docs/USAGE.md)
+- **[Getting Started](docs/getting-started.md)** - Prerequisites, deployment, first audit
+- **[Features](docs/features.md)** - Detailed report structure and capabilities
+- **[Architecture](docs/architecture.md)** - System design and component details
+- **[Usage Guide](docs/usage-guide.md)** - Advanced usage, troubleshooting, best practices
+- **[Videos](docs/videos.md)** - Video tutorials and demos
 
----
+### Quick Links
 
-### 1. Initialize Terraform
-
-```bash
-terraform init
-```
-
-### 2. Review the Plan
-
-```bash
-terraform plan
-```
-
-### 3. Deploy the Infrastructure
-
-```bash
-│   └── requirements.txt# Python dependencies
-├── docs/
-│   ├── ARCHITECTURE.md # Detailed architecture
-│   ├── FEATURES.md     # Feature documentation
-│   └── USAGE.md        # Usage guide
-└── README.md           # This file
-
-### 4. Invoke the Lambda Function
----
-
-## Security Considerations
-
-### ✅ Security Best Practices Implemented
-
-| Feature | Implementation |
-|---------|----------------|
-| **S3 Encryption** | AES-256 server-side encryption enabled |
-| **Public Access** | All public access blocked on S3 bucket |
-| **IAM Permissions** | Least privilege - read-only IAM access |
-| **Logging** | CloudWatch Logs enabled for audit trail |
-| **Versioning** | S3 versioning enabled for report history |
-| **No Credentials** | No hardcoded credentials (CWE-798) |
-
-### IAM Permissions Granted to Lambda
-
-**Read-Only IAM Access:**
-- `iam:GetRole`, `iam:GetPolicy`, `iam:GetPolicyVersion`
-- `iam:ListRoles`, `iam:ListPolicies`
-- `iam:ListAttachedRolePolicies`, `iam:ListRolePolicies`
-```
-**S3 Access** (scoped to audit bucket only):
-- `s3:PutObject`, `s3:GetObject`, `s3:ListBucket`
-
-
-## GitHub Actions Workflows
-
-This project includes three GitHub Actions workflows:
-
-### 1. Terraform Deploy (terraform-deploy.yml)
-
-Main deployment workflow for infrastructure.
-
----
-**Features:**
-- Environment selection (dev/prod)
-- Terraform action selection (plan/apply/destroy)
-- AWS authentication via access keys or OIDC
-
-### 2. Terraform Destroy and Rebuild (terraform-destroy-rebuild.yml)
-
-Specialized workflow for destroying all resources from scratch and rebuilding them.
-
-**Features:**
-- Manual trigger only (workflow_dispatch)
-- Auto-approves destroy action (no manual confirmation required)
-- Auto-approves rebuild/apply action
-- Automatically executes destroy → wait → rebuild sequence
-- Environment selection (dev/prod)
-
-**Usage:**
-1. Go to Actions tab in GitHub
-2. Select "Terraform Destroy and Rebuild" workflow
-3. Click "Run workflow"
-4. Select environment (dev/prod)
-5. Confirm execution
-
-**⚠️ Warning:** This workflow will destroy ALL infrastructure resources and rebuild them. Use with caution in production environments.
-
----
-### 3. Deploy Documentation to GitHub Pages (deploy-docs.yml)
-
-Automatically deploys project documentation to GitHub Pages.
-
-**Features:**
-- Triggers automatically on documentation changes (docs/, README.md)
-- Manual trigger available via workflow_dispatch
-- Uses stable actions/deploy-pages@v4 (more reliable than v5)
-- Includes retry guidance for transient GitHub service failures
-- Deploys all documentation files to a public GitHub Pages site
-
-**Usage:**
-The workflow runs automatically when documentation files are updated. You can also trigger it manually from the Actions tab if needed.
-
-
-## Troubleshooting
-
-### View Lambda Logs
-
-```bash
-aws logs tail /aws/lambda/iam-scanner-lambda --follow
-```
-
-
-### GitHub Pages Deployment Failures
-
-If you encounter 503 errors during GitHub Pages deployment:
-
-1. **Check GitHub Status**: Visit githubstatus.com to see if GitHub Pages is experiencing issues
-2. **Retry Deployment**: Go to Actions tab → Deploy Documentation → Re-run failed jobs
-3. **Verify Permissions**: Ensure repository has Pages enabled in Settings → Pages
-4. **Check Artifact**: Verify the build step completed successfully before deployment
-
-The workflow uses `actions/deploy-pages@v4` which is more stable than v5 and includes better error handling.
-For detailed troubleshooting, see [docs/USAGE.md](docs/USAGE.md#troubleshooting)
+- [Prerequisites](docs/getting-started.md#prerequisites)
+- [Deployment Steps](docs/getting-started.md#deployment)
+- [Input Formats](docs/usage-guide.md#input-formats)
+- [Troubleshooting](docs/usage-guide.md#troubleshooting)
+- [Best Practices](docs/usage-guide.md#best-practices)
 
 ---
 
-## Contributing
+## 💰 Cost
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request with clear descriptions
+### Near-Zero Cost Architecture
+
+This solution is designed to be extremely cost-effective:
+
+| Component | Pricing | Estimated Monthly Cost |
+|-----------|---------|----------------------|
+| AWS Lambda | $0.20 per 1M requests + compute time | **< $0.50** |
+| Amazon S3 | $0.023 per GB storage | **< $0.25** |
+| CloudWatch Logs | $0.50 per GB ingested | **< $0.10** |
+| **Total** | - | **< $1.00/month** |
+
+**Assumptions**: 100 audit runs per month, 10 MB per report, minimal logging
+
+> 💡 **No API Gateway, no databases, no running servers** = minimal AWS costs
 
 ---
 
-## License
+## 🔒 Security
 
-This project is provided as-is for educational and deployment purposes.
+### Built with Security Best Practices
+
+- ✅ **Least Privilege**: Lambda role has read-only IAM access
+- ✅ **No Modification**: Cannot change IAM configurations
+- ✅ **Encryption**: S3 reports encrypted at rest (AES-256)
+- ✅ **Private Access**: S3 bucket blocks public access
+- ✅ **Audit Trail**: CloudWatch Logs capture all executions
+- ✅ **Version Control**: S3 versioning tracks report history
+
+---
+
+## 📖 Glossary
+
+### Key Terms
+
+**IAM (Identity and Access Management)**
+AWS service that controls who can access what resources in your AWS account.
+
+**IAM Role**
+An AWS identity with specific permissions that can be assumed by users, applications, or services.
+
+**IAM Policy**
+A JSON document that defines permissions (what actions are allowed/denied on which resources).
+
+**Managed Policy**
+A standalone policy that can be attached to multiple roles/users. Can be AWS-managed or customer-managed.
+
+**Inline Policy**
+A policy embedded directly within a single role/user (1:1 relationship).
+
+**Trust Policy**
+Defines who or what can assume an IAM role (e.g., Lambda service, EC2 instances, another AWS account).
+
+**Action**
+A specific operation in AWS (e.g., `s3:GetObject`, `ec2:DescribeInstances`, `iam:CreateUser`).
+
+**Resource**
+The AWS entity that an action is performed on (e.g., S3 bucket, EC2 instance, IAM user).
+
+**Principal**
+The entity (user, role, service) that is allowed or denied access in a policy.
+
+**Access Advisor**
+AWS IAM feature that shows when a role/user last accessed a service.
+
+**Least Privilege**
+Security principle: grant only the minimum permissions needed to perform a task.
+
+**Wildcard Permission**
+Using `*` in policies to grant broad access (e.g., `s3:*` allows all S3 actions).
+
+**PassRole**
+IAM action (`iam:PassRole`) that allows giving a role to an AWS service. Can be a privilege escalation vector.
+
+**Serverless**
+Architecture pattern where you run code without managing servers (AWS Lambda is serverless compute).
+
+**boto3**
+The AWS SDK (Software Development Kit) for Python, used to interact with AWS services programmatically.
+
+**CloudWatch Logs**
+AWS service for storing and analyzing log data from applications and AWS services.
+
+**S3 (Simple Storage Service)**
+AWS object storage service for storing files (like our Excel audit reports).
+
+**ARN (Amazon Resource Name)**
+Unique identifier for AWS resources (e.g., `arn:aws:iam::123456789012:role/MyRole`).
+
+**Terraform**
+Infrastructure-as-code tool for provisioning AWS resources using declarative configuration files.
+
+---
+
+<div align="center">
+
+**Made with ❤️ for AWS Security Teams**
+
+[⬆ Back to Top](#-iam-audit-utility)
+
+</div>
