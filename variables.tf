@@ -40,6 +40,12 @@ variable "s3_report_prefix" {
   default     = "iam-audit-reports"
 }
 
+variable "log_retention_days" {
+  description = "CloudWatch log retention period in days"
+  type        = number
+  default     = 14
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)
