@@ -145,6 +145,8 @@ cat output.json
 ---
 
 ## Input Formats
+### Structured Format (Recommended)
+
 
 ### Option 1: Audit by Role Name
 
@@ -152,9 +154,17 @@ cat output.json
 
 ```json
 {
+  "targets": [
+    {
+      "type": "role",
+      "name": "MyApplicationRole"
+    }
+  ]
   "role_name": "MyApplicationRole"
 }
 ```
+**Note**: The structured `targets` format is the recommended approach.
+
 
 ### Option 2: Audit by Policy ARN
 
@@ -162,23 +172,43 @@ cat output.json
 
 ```json
 {
+  "targets": [
+    {
+      "type": "policy",
+      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
+    }
+  ]
   "policy_arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
 }
 ```
-
+### Option 3: Audit Multiple Targets (Roles and Policies)
 ### Option 3: Audit Role with Specific Policy
-
+**Use Case**: Audit multiple roles and policies in one execution
 **Use Case**: Focus on a particular policy attached to a role
 
 ```json
-{
-  "role_name": "MyApplicationRole",
+  "targets": [
+    {
+      "type": "role",
+      "name": "MyApplicationRole"
+    },
+    {
+      "type": "policy",
+      "arn": "arn:aws:iam::123456789012:policy/MyPolicy"
+    },
+    {
+      "type": "role",
+      "name": "MyLambdaRole"
+    }
+  ]
   "policy_arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
 }
 ```
-
+### Legacy Format (Still Supported)
 ### Option 4: Batch Audit (Multiple Roles)
+### Option 4: Batch Audit (Multiple Roles - Legacy)
 
+**Use Case**: Audit multiple roles using the legacy format
 **Use Case**: Audit multiple roles in one execution
 
 ```json
@@ -190,6 +220,45 @@ cat output.json
   ]
 }
 ```
+
+**Note**: The legacy `role_names` format is still supported for backward compatibility, but the structured `targets` format is recommended for new implementations as it supports both roles and policies.
+
+---
+
+## Input Format Examples
+
+### Example 1: New Structured Format
+
+```json
+{
+  "output_bucket": "my-audit-bucket",
+  "targets": [
+    {
+      "type": "role",
+      "name": "MyApplicationRole"
+    },
+    {
+      "type": "policy",
+      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
+    }
+  ],
+  "include_last_access": true,
+  "include_cloudtrail_usage": true
+}
+```
+
+### Example 2: Legacy Format (Backward Compatible)
+
+```json
+{
+  "output_bucket": "my-audit-bucket",
+  "role_names": [
+    "MyApplicationRole",
+    "MyLambdaRole"
+  ],
+  "include_last_access": true,
+  "include_cloudtrail_usage": true
+}
 
 ---
 

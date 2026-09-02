@@ -15,7 +15,6 @@ sts = boto3.client("sts")
 cloudtrail = boto3.client("cloudtrail")
 
 def lambda_handler(event, context):
-    role_names = event.get("role_names", [])
     output_bucket = event["output_bucket"]
     output_prefix = event.get("output_prefix", "iam-audit-reports")
     include_last_access = event.get("include_last_access", True)
@@ -25,12 +24,63 @@ def lambda_handler(event, context):
     cloudtrail_max_pages = int(event.get("cloudtrail_max_pages", 5))
     account_id = sts.get_caller_identity()["Account"]
     generated_reports = []
-    if not role_names:
+    
+    # Parse input format - support both new structured format and legacy format
+    targets_to_process = []
+    
+    # Check for new structured format
+    if "targets" in event:
+        targets = event.get("targets", [])
+        for target in targets:
+            target_type = target.get("type", "").lower()
+            if target_type == "role":
+                targets_to_process.append({
+                    "type": "role",
+                    "name": target.get("name", "")
+                })
+            elif target_type == "policy":
+                targets_to_process.append({
+                    "type": "policy",
+                    "arn": target.get("arn", "")
+                })
+    # Legacy support for role_names
+    elif "role_names" in event:
+        role_names = event.get("role_names", [])
+        for role_name in role_names:
+            targets_to_process.append({
+                "type": "role",
+                "name": role_name
+            })
+    
+    if not targets_to_process:
         return {
             "status": "failed",
-            "message": "Please provide at least one role name in role_names"
+            "message": "Please provide at least one target in 'targets' array or use 'role_names' (legacy)"
         }
-    for role_name in role_names:
+    
+    # Process each target
+    for target in targets_to_process:
+        if target["type"] == "role":
+            role_name = target["name"]
+            process_role(role_name, account_id, output_bucket, output_prefix, 
+                        include_last_access, include_cloudtrail_usage, 
+                        cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports)
+        elif target["type"] == "policy":
+            policy_arn = target["arn"]
+            process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports)
+    
+    return {
+        "status": "success",
+        "message": "IAM governance reports generated successfully",
+        "total_targets_processed": len(generated_reports),
+        "reports": generated_reports
+    }
+
+def process_role(role_name, account_id, output_bucket, output_prefix, 
+                 include_last_access, include_cloudtrail_usage, 
+                 cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports):
+    """Process a single role and generate report"""
+    try:
         print(f"Processing role: {role_name}")
         role_result = audit_role(account_id, role_name)
         detailed_rows = role_result["detailed_rows"]
@@ -135,11 +185,164 @@ def lambda_handler(event, context):
         })
         print(f"Completed report for {role_name}: s3://{output_bucket}/{s3_key}")
     return {
+    except Exception as e:
+        print(f"Error processing role {role_name}: {str(e)}")
+        generated_reports.append({
+            "role_name": role_name,
+            "role_arn": "",
+            "status": "failed",
+            "error": str(e)
+        })
+
+def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
+    """Process a standalone policy and generate report"""
+    try:
+        print(f"Processing policy: {policy_arn}")
+        policy_result = audit_standalone_policy(account_id, policy_arn)
+        detailed_rows = policy_result["detailed_rows"]
+        risk_rows = policy_result["risk_rows"]
+        policy_name = policy_result["policy_name"]
+        
+        service_summary_rows = build_service_summary(detailed_rows)
+        
+        # For policies, we don't have last access or CloudTrail data
+        last_access_rows = [{
+            "AccountId": account_id,
+            "PolicyName": policy_name,
+            "PolicyArn": policy_arn,
+            "ServiceName": "",
+            "ServiceNamespace": "",
+            "ActionName": "",
+            "LastAuthenticated": "",
+            "LastAuthenticatedRegion": "",
+            "LastAuthenticatedEntity": "",
+            "TotalAuthenticatedEntities": "",
+            "Status": "Not applicable for standalone policies"
+        }]
+        
+        role_usage_rows = [{
+            "AccountId": account_id,
+            "PolicyName": policy_name,
+            "PolicyArn": policy_arn,
+            "EventTime": "",
+            "EventName": "",
+            "WhoAssumedRole": "",
+            "SourceIdentity": "",
+            "RoleSessionName": "",
+            "SourceIPAddress": "",
+            "UserAgent": "",
+            "AwsRegion": "",
+            "MFAAuthenticated": "",
+            "ErrorCode": "",
+            "Status": "Not applicable for standalone policies"
+        }]
+        
+        if not detailed_rows:
+            detailed_rows = [{
+                "AccountId": account_id,
+                "InputType": "Policy",
+                "PolicyName": policy_name,
+                "PolicyArn": policy_arn,
+                "PolicyType": "Managed",
+                "Effect": "",
+                "Service": "",
+                "Action": "",
+                "AccessType": "",
+                "Resource": "",
+                "ResourceLevel": "",
+                "Condition": "",
+                "RiskFlag": "No permissions found or unable to parse policy"
+            }]
+        
+        if not risk_rows:
+            risk_rows = [{
+                "AccountId": account_id,
+                "PolicyName": policy_name,
+                "PolicyArn": policy_arn,
+                "Finding": "No high-risk findings identified by static parser",
+                "Severity": "Info",
+                "Resource": "",
+                "Action": ""
+            }]
+        
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        safe_policy_name = sanitize_name(policy_name)
+        file_name = f"{safe_policy_name}_{account_id}_{timestamp}.xlsx"
+        local_path = f"/tmp/{file_name}"
+        s3_key = f"{output_prefix.rstrip('/')}/{file_name}"
+        
+        write_excel_report(
+            local_path=local_path,
+            detailed_rows=detailed_rows,
+            summary_rows=service_summary_rows,
+            risk_rows=risk_rows,
+            last_access_rows=last_access_rows,
+            role_usage_rows=role_usage_rows
+        )
+        
+        s3.upload_file(local_path, output_bucket, s3_key)
+        
+        generated_reports.append({
+            "policy_name": policy_name,
+            "policy_arn": policy_arn,
+            "file_name": file_name,
+            "s3_uri": f"s3://{output_bucket}/{s3_key}",
+            "detailed_permission_rows": len(detailed_rows),
+            "risk_rows": len(risk_rows)
+        })
+        print(f"Completed report for policy {policy_name}: s3://{output_bucket}/{s3_key}")
+    except Exception as e:
+        print(f"Error processing policy {policy_arn}: {str(e)}")
+        generated_reports.append({
+            "policy_arn": policy_arn,
+            "status": "failed",
+            "error": str(e)
+        })
+
+def audit_standalone_policy(account_id, policy_arn):
+    """Audit a standalone managed policy"""
+    detailed_rows = []
+    risk_rows = []
+    policy_name = ""
+    
+    try:
+        policy_meta = iam.get_policy(PolicyArn=policy_arn)["Policy"]
+        policy_name = policy_meta["PolicyName"]
+        default_version_id = policy_meta["DefaultVersionId"]
+        
+        version_response = iam.get_policy_version(
+            PolicyArn=policy_arn,
+            VersionId=default_version_id
+        )
+        
+        policy_document = normalize_policy_document(
+            version_response["PolicyVersion"]["Document"]
+        )
+        
+        detailed_rows, risk_rows = parse_policy_document(
+            account_id=account_id,
+            input_type="Policy",
+            role_name="",
+            role_arn="",
+            policy_name=policy_name,
+            policy_type="Managed",
+            policy_document=policy_document
+        )
+    except Exception as e:
+        risk_rows.append({
+            "AccountId": account_id,
+            "PolicyName": policy_name or policy_arn,
+            "PolicyArn": policy_arn,
+            "Finding": f"Unable to read policy: {str(e)}",
+            "Severity": "High",
+            "Resource": "",
+            "Action": ""
+        })
+    
         "status": "success",
-        "message": "IAM role governance reports generated successfully",
-        "total_roles_processed": len(generated_reports),
-        "reports": generated_reports
-    }
+        "policy_name": policy_name or policy_arn,
+        "detailed_rows": detailed_rows,
+        "risk_rows": risk_rows
 
 def audit_role(account_id, role_name):
     detailed_rows = []
