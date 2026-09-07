@@ -2,6 +2,7 @@ import boto3
 import json
 import re
 import time
+import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 from collections import defaultdict
@@ -15,8 +16,8 @@ sts = boto3.client("sts")
 cloudtrail = boto3.client("cloudtrail")
 
 def lambda_handler(event, context):
-    output_bucket = event["output_bucket"]
-    output_prefix = event.get("output_prefix", "iam-audit-reports")
+    output_bucket = os.environ["S3_BUCKET_NAME"]
+    output_prefix = os.environ.get("REPORT_PREFIX","iam-audit-reports")
     include_last_access = event.get("include_last_access", True)
     include_cloudtrail_usage = event.get("include_cloudtrail_usage", True)
     cloudtrail_lookup_days = int(event.get("cloudtrail_lookup_days", 90))
