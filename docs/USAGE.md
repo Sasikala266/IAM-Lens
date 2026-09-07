@@ -148,10 +148,9 @@ cat output.json
 ### Structured Format (Recommended)
 
 
-### Option 1: Audit by Role Name
+### Option 1: Audit an IAM Role
 
-**Use Case**: Audit a specific IAM role
-
+**Use Case**: Audit a specific IAM role's permissions
 ```json
 {
   "targets": [
@@ -160,10 +159,9 @@ cat output.json
       "name": "MyApplicationRole"
     }
   ]
-  "role_name": "MyApplicationRole"
 }
 ```
-**Note**: The structured `targets` format is the recommended approach.
+
 
 
 ### Option 2: Audit by Policy ARN
@@ -178,15 +176,30 @@ cat output.json
       "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
     }
   ]
-  "policy_arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
 }
 ```
-### Option 3: Audit Multiple Targets (Roles and Policies)
-### Option 3: Audit Role with Specific Policy
-**Use Case**: Audit multiple roles and policies in one execution
-**Use Case**: Focus on a particular policy attached to a role
+
+### Option 3: Audit an IAM User
+
+**Use Case**: Audit a specific IAM user's permissions
 
 ```json
+{
+  "targets": [
+    {
+      "type": "user",
+      "name": "john.doe"
+    }
+  ]
+}
+```
+
+### Option 4: Audit Multiple Targets (Roles, Policies, and Users)
+
+**Use Case**: Audit multiple resources in one execution
+
+```json
+{
   "targets": [
     {
       "type": "role",
@@ -194,22 +207,21 @@ cat output.json
     },
     {
       "type": "policy",
-      "arn": "arn:aws:iam::123456789012:policy/MyPolicy"
+      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
     },
     {
-      "type": "role",
-      "name": "MyLambdaRole"
+      "type": "user",
+      "name": "jane.smith"
     }
   ]
-  "policy_arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
 }
 ```
+
 ### Legacy Format (Still Supported)
-### Option 4: Batch Audit (Multiple Roles)
-### Option 4: Batch Audit (Multiple Roles - Legacy)
+
+### Option 5: Batch Audit (Multiple Roles - Legacy)
 
 **Use Case**: Audit multiple roles using the legacy format
-**Use Case**: Audit multiple roles in one execution
 
 ```json
 {
@@ -269,7 +281,23 @@ cat output.json
 **Basic Invocation**:
 ```bash
 aws lambda invoke \
+  --payload '{"targets": [{"type": "role", "name": "MyRole"}]}' \
+  output.json
+```
+
+**Audit IAM User**:
+```bash
+aws lambda invoke \
   --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "user", "name": "john.doe"}]}' \
+  output.json
+```
+
+**Audit IAM Policy**:
+```bash
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "policy", "arn": "arn:aws:iam::123456789012:policy/MyPolicy"}]}' \
   --payload '{"role_name": "MyRole"}' \
   output.json
 ```
@@ -278,7 +306,7 @@ aws lambda invoke \
 ```bash
 # Create input file
 cat > input.json << EOF
-{
+  "targets": [{"type": "role", "name": "MyApplicationRole"}]
   "role_name": "MyApplicationRole"
 }
 EOF
@@ -294,7 +322,7 @@ aws lambda invoke \
 ```bash
 aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --invocation-type Event \
+  --payload '{"targets": [{"type": "role", "name": "MyRole"}]}' \
   --payload '{"role_name": "MyRole"}' \
   output.json
 ```
@@ -308,7 +336,7 @@ aws lambda invoke \
    - **Event name**: `TestAudit`
    - **Event JSON**:
      ```json
-     {
+       "targets": [{"type": "role", "name": "MyApplicationRole"}]
        "role_name": "MyApplicationRole"
      }
      ```
@@ -326,7 +354,7 @@ lambda_client = boto3.client('lambda')
 response = lambda_client.invoke(
     FunctionName='iam-scanner-lambda',
     InvocationType='RequestResponse',
-    Payload=json.dumps({
+        'targets': [{'type': 'role', 'name': 'MyApplicationRole'}]
         'role_name': 'MyApplicationRole'
     })
 )
@@ -347,7 +375,7 @@ aws events put-rule \
 
 # Add Lambda as target
 aws events put-targets \
-  --rule weekly-iam-audit \
+  --targets "Id"="1","Arn"="arn:aws:lambda:REGION:ACCOUNT:function:iam-scanner-lambda","Input"='{"targets":[{"type":"role","name":"MyRole"}]}'
   --targets "Id"="1","Arn"="arn:aws:lambda:REGION:ACCOUNT:function:iam-scanner-lambda","Input"='{"role_name":"MyRole"}'
 
 # Grant EventBridge permission to invoke Lambda
@@ -412,7 +440,7 @@ ROLES=$(aws iam list-roles --query 'Roles[*].RoleName' --output text)
 # Audit each role
 for ROLE in $ROLES; do
   echo "Auditing role: $ROLE"
-  aws lambda invoke \
+    --payload "{\"targets\": [{\"type\": \"role\", \"name\": \"$ROLE\"}]}" \
     --function-name iam-scanner-lambda \
     --payload "{\"role_name\": \"$ROLE\"}" \
     --invocation-type Event \
@@ -421,18 +449,42 @@ for ROLE in $ROLES; do
 done
 
 echo "All audits initiated"
+### 1b. Audit All Users in Account
+
+Create a wrapper script to audit all IAM users:
+
+```bash
+#!/bin/bash
+
+# Get all user names
+USERS=$(aws iam list-users --query 'Users[*].UserName' --output text)
+
+# Audit each user
+for USER in $USERS; do
+  echo "Auditing user: $USER"
+  aws lambda invoke \
+    --function-name iam-scanner-lambda \
+    --payload "{\"targets\": [{\"type\": \"user\", \"name\": \"$USER\"}]}" \
+    --invocation-type Event \
+    output-$USER.json
+  sleep 2  # Rate limiting
+done
+
+echo "All user audits initiated"
+```
+
 ```
 
 ### 2. Compare Role Permissions
 
 ```bash
 # Audit two roles
-aws lambda invoke \
+  --payload '{"targets": [{"type": "role", "name": "Role1"}]}' \
   --function-name iam-scanner-lambda \
   --payload '{"role_name": "Role1"}' \
   output1.json
 
-aws lambda invoke \
+  --payload '{"targets": [{"type": "role", "name": "Role2"}]}' \
   --function-name iam-scanner-lambda \
   --payload '{"role_name": "Role2"}' \
   output2.json
@@ -470,7 +522,7 @@ jobs:
       - name: Run IAM Audit
         run: |
           aws lambda invoke \
-            --function-name iam-scanner-lambda \
+            --payload '{"targets": [{"type": "role", "name": "ProductionRole"}]}' \
             --payload '{"role_name": "ProductionRole"}' \
             output.json
           
@@ -556,6 +608,10 @@ Required IAM actions:
 - `iam:GenerateServiceLastAccessedDetails` (for Last Access tab)
 - `iam:GetServiceLastAccessedDetails` (for Last Access tab)
 - `cloudtrail:LookupEvents` (for Role Usage CloudTrail tab)
+- `iam:GetUser` (for User audits)
+- `iam:ListAttachedUserPolicies` (for User audits)
+- `iam:ListUserPolicies` (for User audits)
+- `iam:GetUserPolicy` (for User inline policies)
 
 ---
 
@@ -583,7 +639,7 @@ Required IAM actions:
 
 **Symptom**: `NoSuchEntity` error when auditing role
 
-**Solution**: Verify role name is correct:
+aws iam get-role --role-name MyApplicationRole
 ```bash
 aws iam get-role --role-name MyApplicationRole
 ```
