@@ -745,7 +745,8 @@ def build_service_summary(detailed_rows):
         access_type = row.get("AccessType", "Other")
         resource = row.get("Resource", "")
         full_action = row.get("FullAction", "")
-        if access_type in summary:
+        valid_access_types = ["Read", "Write", "List", "Delete", "Admin", "Wildcard", "PermissionManagement"]
+        if access_type in valid_access_types:
             summary[key][access_type] = "Yes"
         else:
             summary[key]["Other"] = "Yes"
