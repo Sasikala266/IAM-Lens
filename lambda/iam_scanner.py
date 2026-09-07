@@ -40,10 +40,17 @@ def lambda_handler(event, context):
                     "name": target.get("name", "")
                 })
             elif target_type == "policy":
-                targets_to_process.append({
-                    "type": "policy",
-                    "arn": target.get("arn", "")
-                })
+                policy_arn = target.get("arn", "").strip()
+                # Validate that policy ARN is provided and meets minimum length requirement
+                if not policy_arn:
+                    print(f"Warning: Skipping policy target with empty ARN: {target}")
+                elif len(policy_arn) < 20:
+                    print(f"Warning: Skipping policy target with invalid ARN (too short): {policy_arn}")
+                else:
+                    targets_to_process.append({
+                        "type": "policy",
+                        "arn": policy_arn
+                    })
     # Legacy support for role_names
     elif "role_names" in event:
         role_names = event.get("role_names", [])
@@ -197,6 +204,17 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
 def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
     """Process a standalone policy and generate report"""
     try:
+        # Validate policy ARN before processing
+        if not policy_arn or not isinstance(policy_arn, str):
+            error_msg = "Policy ARN is missing or invalid"
+            print(f"Error: {error_msg}")
+            generated_reports.append({
+                "policy_arn": str(policy_arn),
+                "status": "failed",
+                "error": error_msg
+            })
+            return
+        
         print(f"Processing policy: {policy_arn}")
         policy_result = audit_standalone_policy(account_id, policy_arn)
         detailed_rows = policy_result["detailed_rows"]
