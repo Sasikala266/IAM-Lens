@@ -2,45 +2,60 @@
 
 ## Overview
 
-The IAM Audit Utility provides comprehensive IAM role and policy analysis through automated scanning and reporting. It answers critical security audit questions:
+The IAM Audit Utility provides comprehensive IAM role, policy, and user analysis through automated scanning and reporting. It answers critical security audit questions:
 
 - **Which resources** can access **what services**?
 - **What actions** can be performed?
 - **What resource-level** permissions exist?
 - **What security risks** are present?
 - **When** were permissions last used?
+- **Who** is actively using specific permissions?
 
 ## Excel Report Structure
 
-The utility generates a comprehensive Excel workbook with **5 sheets**, each serving a specific audit purpose:
+The utility generates comprehensive Excel workbooks with multiple sheets based on the target type:
 
-### Sheet 1: Role Details
+### Report Types
 
-**Purpose**: High-level overview of the IAM role configuration
+#### 1. Role Reports (5 Sheets)
 
-**Columns**:
-| Column | Description | Example |
-|--------|-------------|---------|
-| Role Name | IAM role identifier | `MyApplicationRole` |
-| Role ARN | Full Amazon Resource Name | `arn:aws:iam::123456789012:role/MyApplicationRole` |
-| Creation Date | When role was created | `2024-01-15 10:30:00` |
-| Last Used | Most recent role assumption | `2024-03-20 14:22:35` |
-| Trust Policy | Who can assume the role | `lambda.amazonaws.com` |
-| Description | Role description | `Application backend role` |
-| Tags | Associated metadata | `Environment: Production` |
-| Max Session Duration | Maximum session length | `3600 seconds` |
+For IAM roles, the report includes:
+- **Detailed Permissions**: Granular permission breakdown
+- **Service Summary**: Aggregated service-level access
+- **Risk Findings**: Security risk identification
+- **Last Access**: Service usage tracking
+- **Role Usage CloudTrail**: Role assumption events
 
-**Use Case**: Quick role identification and basic configuration review
+#### 2. Policy Reports (3 Sheets)
+
+For standalone managed policies, the report includes:
+- **Detailed Permissions**: Granular permission breakdown
+- **Service Summary**: Aggregated service-level access
+- **Risk Findings**: Security risk identification
+
+#### 3. User Reports (5 Sheets)
+
+For IAM users, the report includes:
+- **Detailed Permissions**: Granular permission breakdown
+- **Service Summary**: Aggregated service-level access
+- **Risk Findings**: Security risk identification
+- **Last Access**: Service usage tracking
+- **User Activity CloudTrail**: User API activity and sign-in events
 
 ---
 
-### Sheet 2: Detailed Permissions
+## Sheet Details
 
-**Purpose**: Granular breakdown of all permissions granted to the role
+### Sheet 1: Detailed Permissions
+
+**Purpose**: Granular breakdown of all permissions granted to the role, policy, or user
 
 **Columns**:
 | Column | Description | Example |
 |--------|-------------|---------|
+| Input Type | Type of target | `Role`, `Policy`, or `User` |
+| Role Name | IAM role identifier | `MyApplicationRole` |
+| User Name | IAM user identifier | `john.doe` |
 | Policy Name | Name of the policy | `AmazonS3ReadOnlyAccess` |
 | Policy Type | Managed, Inline, or AWS Managed | `AWS Managed` |
 | Policy ARN | Full policy ARN (if managed) | `arn:aws:iam::aws:policy/...` |
@@ -57,11 +72,14 @@ The utility generates a comprehensive Excel workbook with **5 sheets**, each ser
 - Includes both attached and inline policies
 - Shows resource-level constraints
 - Displays conditional access requirements
-
+**Use Case**: 
+- Deep-dive permission analysis
+- Compliance verification
+- Least-privilege reviews
 **Use Case**: Deep-dive permission analysis, compliance verification, least-privilege reviews
 
 ---
-
+### Sheet 2: Service Summary
 ### Sheet 3: Service Summary
 
 **Purpose**: Aggregated view of access levels per AWS service
@@ -100,7 +118,7 @@ The utility generates a comprehensive Excel workbook with **5 sheets**, each ser
 
 ---
 
-### Sheet 4: Risk Findings
+### Sheet 3: Risk Findings
 
 **Purpose**: Security risk identification and compliance flagging
 
@@ -162,7 +180,7 @@ The utility generates a comprehensive Excel workbook with **5 sheets**, each ser
 
 ---
 
-### Sheet 5: Last Access
+### Sheet 4: Last Access (Roles and Users Only)
 
 **Purpose**: Track actual usage of granted permissions
 
@@ -177,7 +195,8 @@ The utility generates a comprehensive Excel workbook with **5 sheets**, each ser
 | Total Granted Actions | Actions available | `25` |
 | Status | Usage status | `Recently Used / Never Used` |
 
-**Data Source**: AWS IAM Access Advisor API
+**Data Source**: AWS IAM Access Advisor API  
+**Applies To**: IAM Roles and IAM Users
 
 **Features**:
 - Service-level last access tracking
@@ -193,6 +212,48 @@ The utility generates a comprehensive Excel workbook with **5 sheets**, each ser
 
 ---
 
+### Sheet 5a: Role Usage CloudTrail (Roles Only)
+
+**Purpose**: Track role assumption events and session details
+
+**Columns**:
+| Column | Description | Example |
+|--------|-------------|---------|
+| Event Time | When role was assumed | `2024-03-20 14:22:35` |
+| Event Name | Type of assume role event | `AssumeRole` |
+| Who Assumed Role | Principal that assumed role | `arn:aws:iam::123456789012:user/admin` |
+| Source Identity | Source identity if set | `admin@example.com` |
+| Role Session Name | Session identifier | `admin-session-123` |
+| Source IP Address | Origin IP | `10.0.1.100` |
+| User Agent | Client used | `aws-cli/2.0` |
+| MFA Authenticated | MFA status | `true` |
+| Error Code | Any errors | `AccessDenied` |
+
+**Data Source**: AWS CloudTrail  
+**Events Tracked**: AssumeRole, AssumeRoleWithSAML, AssumeRoleWithWebIdentity
+
+---
+
+### Sheet 5b: User Activity CloudTrail (Users Only)
+
+**Purpose**: Track user API activity and authentication events
+
+**Columns**:
+| Column | Description | Example |
+|--------|-------------|---------|
+| Event Time | When action occurred | `2024-03-20 14:22:35` |
+| Event Name | API action performed | `GetObject` |
+| Event Source | AWS service accessed | `s3.amazonaws.com` |
+| Source IP Address | Origin IP | `10.0.1.100` |
+| User Agent | Client used | `aws-cli/2.0` |
+| MFA Authenticated | MFA status | `true` |
+| Error Code | Any errors | `AccessDenied` |
+
+**Data Source**: AWS CloudTrail  
+**Events Tracked**: All API calls made by the user
+
+---
+
 ## Audit Capabilities
 
 ### 1. Policy Source Tracking
@@ -200,6 +261,7 @@ The utility tracks permissions from multiple sources:
 - **AWS Managed Policies**: Pre-built AWS policies
 - **Customer Managed Policies**: Organization-created policies
 - **Inline Policies**: Policies directly embedded in roles
+- **User Policies**: Both attached and inline policies for IAM users
 
 ### 2. Multi-Version Support
 - Analyzes default (active) policy versions
@@ -219,6 +281,11 @@ Reviews who can assume the role:
 - Service principals (AWS services)
 - Account principals (cross-account access)
 - Federated users (SSO/SAML)
+
+### 5. User Activity Tracking
+- CloudTrail events for IAM users
+- Sign-in events and API usage
+- Authentication details including MFA status
 - Specific IAM users or roles
 
 ## Benefits Over Manual Auditing
@@ -235,7 +302,7 @@ Reviews who can assume the role:
 
 ## Report Output Format
 
-- **File Format**: Excel (.xlsx)
+- **File Naming**: `{target-name}_{account-id}_{timestamp}.xlsx`
 - **File Naming**: `iam-audit-{role-name}-{timestamp}.xlsx`
 - **Storage**: Amazon S3 bucket with encryption
 - **Retention**: Configurable via S3 lifecycle policies
