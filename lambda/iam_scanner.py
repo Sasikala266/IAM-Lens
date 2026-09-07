@@ -165,7 +165,7 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
         file_name = f"{safe_role_name}_{account_id}_{timestamp}.xlsx"
         local_path = f"/tmp/{file_name}"
         s3_key = f"{output_prefix.rstrip('/')}/{file_name}"
-        write_excel_report(
+        write_excel_report_for_role(
             local_path=local_path,
             detailed_rows=detailed_rows,
             summary_rows=service_summary_rows,
@@ -205,44 +205,14 @@ def process_policy(policy_arn, account_id, output_bucket, output_prefix, generat
         
         service_summary_rows = build_service_summary(detailed_rows)
         
-        # For policies, we don't have last access or CloudTrail data
-        last_access_rows = [{
-            "AccountId": account_id,
-            "PolicyName": policy_name,
-            "PolicyArn": policy_arn,
-            "ServiceName": "",
-            "ServiceNamespace": "",
-            "ActionName": "",
-            "LastAuthenticated": "",
-            "LastAuthenticatedRegion": "",
-            "LastAuthenticatedEntity": "",
-            "TotalAuthenticatedEntities": "",
-            "Status": "Not applicable for standalone policies"
-        }]
-        
-        role_usage_rows = [{
-            "AccountId": account_id,
-            "PolicyName": policy_name,
-            "PolicyArn": policy_arn,
-            "EventTime": "",
-            "EventName": "",
-            "WhoAssumedRole": "",
-            "SourceIdentity": "",
-            "RoleSessionName": "",
-            "SourceIPAddress": "",
-            "UserAgent": "",
-            "AwsRegion": "",
-            "MFAAuthenticated": "",
-            "ErrorCode": "",
-            "Status": "Not applicable for standalone policies"
-        }]
-        
         if not detailed_rows:
             detailed_rows = [{
                 "AccountId": account_id,
                 "InputType": "Policy",
                 "PolicyName": policy_name,
                 "PolicyArn": policy_arn,
+                "RoleName": "",
+                "RoleArn": "",
                 "PolicyType": "Managed",
                 "Effect": "",
                 "Service": "",
@@ -271,13 +241,11 @@ def process_policy(policy_arn, account_id, output_bucket, output_prefix, generat
         local_path = f"/tmp/{file_name}"
         s3_key = f"{output_prefix.rstrip('/')}/{file_name}"
         
-        write_excel_report(
+        write_excel_report_for_policy(
             local_path=local_path,
             detailed_rows=detailed_rows,
             summary_rows=service_summary_rows,
-            risk_rows=risk_rows,
-            last_access_rows=last_access_rows,
-            role_usage_rows=role_usage_rows
+            risk_rows=risk_rows
         )
         
         s3.upload_file(local_path, output_bucket, s3_key)
@@ -323,6 +291,7 @@ def audit_standalone_policy(account_id, policy_arn):
             account_id=account_id,
             input_type="Policy",
             role_name="",
+            policy_arn=policy_arn,
             role_arn="",
             policy_name=policy_name,
             policy_type="Managed",
@@ -392,6 +361,7 @@ def audit_role(account_id, role_name):
                 account_id=account_id,
                 input_type="Role",
                 role_name=role_name,
+                policy_arn="",
                 role_arn=role_arn,
                 policy_name=inline_policy_name,
                 policy_type="Inline",
@@ -461,6 +431,7 @@ def audit_managed_policy(account_id, role_name, role_arn, policy_arn, policy_nam
             account_id=account_id,
             input_type="Role",
             role_name=role_name,
+            policy_arn=policy_arn,
             role_arn=role_arn,
             policy_name=policy_name,
             policy_type="Managed",
@@ -487,6 +458,7 @@ def parse_policy_document(
     account_id,
     input_type,
     role_name,
+    policy_arn,
     role_arn,
     policy_name,
     policy_type,
@@ -530,6 +502,7 @@ def parse_policy_document(
                     "AccountId": account_id,
                     "InputType": input_type,
                     "RoleName": role_name,
+                    "PolicyArn": policy_arn,
                     "RoleArn": role_arn,
                     "PolicyName": policy_name,
                     "PolicyType": policy_type,
@@ -1037,8 +1010,9 @@ def write_excel_report(
     summary_rows,
     risk_rows,
     last_access_rows,
-    role_usage_rows
+    role_usage_rows,
 ):
+    """Write Excel report for roles with all 5 tabs"""
     wb = Workbook()
     default_sheet = wb.active
     wb.remove(default_sheet)
@@ -1048,6 +1022,27 @@ def write_excel_report(
     add_sheet(wb, "Last Access", last_access_rows)
     add_sheet(wb, "Role Usage CloudTrail", role_usage_rows)
     wb.save(local_path)
+def write_excel_report_for_role(
+    local_path,
+    detailed_rows,
+    summary_rows,
+    risk_rows,
+    last_access_rows,
+    role_usage_rows
+):
+    """Write Excel report for roles with all 5 tabs"""
+    write_excel_report(local_path, detailed_rows, summary_rows, risk_rows, last_access_rows, role_usage_rows)
+
+def write_excel_report_for_policy(local_path, detailed_rows, summary_rows, risk_rows):
+    """Write Excel report for policies with only 3 relevant tabs"""
+    wb = Workbook()
+    default_sheet = wb.active
+    wb.remove(default_sheet)
+    add_sheet(wb, "Detailed Permissions", detailed_rows)
+    add_sheet(wb, "Service Summary", summary_rows)
+    add_sheet(wb, "Risk Findings", risk_rows)
+    wb.save(local_path)
+
 
 def add_sheet(wb, sheet_name, rows):
     ws = wb.create_sheet(title=sheet_name)
