@@ -553,6 +553,9 @@ Required IAM actions:
 - `iam:GetPolicyVersion`
 - `iam:ListAttachedRolePolicies`
 - `iam:ListRolePolicies`
+- `iam:GenerateServiceLastAccessedDetails` (for Last Access tab)
+- `iam:GetServiceLastAccessedDetails` (for Last Access tab)
+- `cloudtrail:LookupEvents` (for Role Usage CloudTrail tab)
 
 ---
 
