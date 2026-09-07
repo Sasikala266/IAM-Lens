@@ -77,7 +77,16 @@ resource "aws_iam_policy" "lambda_policy" {
           "iam:ListAttachedUserPolicies",
           "iam:ListAttachedRolePolicies",
           "iam:ListUserPolicies",
-          "iam:ListRolePolicies"
+          "iam:ListRolePolicies",
+          "iam:GenerateServiceLastAccessedDetails",
+          "iam:GetServiceLastAccessedDetails"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudtrail:LookupEvents"
         ]
         Resource = "*"
       }
