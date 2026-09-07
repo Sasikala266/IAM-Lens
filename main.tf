@@ -65,21 +65,9 @@ resource "aws_iam_policy" "lambda_policy" {
       {
         Effect = "Allow"
         Action = [
-          "iam:GetAccountSummary",
-          "iam:ListUsers",
-          "iam:ListRoles",
-          "iam:ListPolicies",
-          "iam:ListAccessKeys",
-          "iam:GetUser",
-          "iam:GetRole",
-          "iam:GetPolicy",
-          "iam:GetPolicyVersion",
-          "iam:ListAttachedUserPolicies",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListUserPolicies",
-          "iam:ListRolePolicies",
-          "iam:GenerateServiceLastAccessedDetails",
-          "iam:GetServiceLastAccessedDetails"
+          "iam:Get*",
+          "iam:List*",
+          "iam:Generate*"
         ]
         Resource = "*"
       },
