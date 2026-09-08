@@ -17,7 +17,7 @@
 
 ## 🌟 Overview
 
-The **IAM Audit Utility** is a serverless AWS solution that automates IAM role and policy auditing. It generates comprehensive Excel reports with detailed permissions, service access, security risks, and usage analytics.
+The **IAM Lens** is a serverless AWS solution that automates IAM role and policy auditing. It generates comprehensive Excel reports with detailed permissions, service access, security risks, and usage analytics.
 
 ### What This Documentation Covers
 
@@ -34,7 +34,7 @@ This documentation provides everything you need to:
 ## 📖 Documentation Guides
 
 ### 🚀 [Getting Started](getting-started.md)
-**Start here if you're new to the IAM Audit Utility**
+**Start here if you're new to the IAM Lens**
 
 Learn how to:
 - Install prerequisites (Terraform, AWS CLI)
@@ -193,6 +193,6 @@ A: Yes! See [Batch Auditing](usage-guide.md#1-audit-all-roles-in-account) in the
 
 **Ready to get started?** → [Getting Started Guide](getting-started.md)
 
-[⬆ Back to Top](#-iam-audit-utility---documentation-hub)
+[⬆ Back to Top](#-iam-lens---documentation-hub)
 
 </div>
