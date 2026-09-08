@@ -75,8 +75,8 @@ def lambda_handler(event, context):
                         include_last_access, include_cloudtrail_usage, 
                         cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports)
         elif target["type"] == "policy":
-            policy_arn = target["name"]
-            process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports)
+            policy_identifier = target["name"]
+            process_policy(policy_identifier, account_id, output_bucket, output_prefix, generated_reports)
         elif target["type"] == "user":
             user_name = target["name"]
             process_user(user_name, account_id, output_bucket, output_prefix, 
@@ -207,24 +207,25 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
         })
 
 def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
-    """Process a standalone policy and generate report"""
+def process_policy(policy_identifier, account_id, output_bucket, output_prefix, generated_reports):
     try:
         # Validate policy ARN before processing
         if not policy_arn or not isinstance(policy_arn, str):
-            error_msg = "Policy ARN is missing or invalid"
+        if not policy_identifier or not isinstance(policy_identifier, str):
             print(f"Error: {error_msg}")
             generated_reports.append({
                 "policy_arn": str(policy_arn),
-                "status": "failed",
+                "policy_arn": str(policy_identifier),
                 "error": error_msg
             })
             return
         
-        print(f"Processing policy: {policy_arn}")
-        policy_result = audit_standalone_policy(account_id, policy_arn)
+        print(f"Processing policy: {policy_identifier}")
+        policy_result = audit_standalone_policy(account_id, policy_identifier)
         detailed_rows = policy_result["detailed_rows"]
         risk_rows = policy_result["risk_rows"]
         policy_name = policy_result["policy_name"]
+        policy_arn = policy_result["policy_arn"]
         
         service_summary_rows = build_service_summary(detailed_rows)
         
@@ -283,20 +284,24 @@ def process_policy(policy_arn, account_id, output_bucket, output_prefix, generat
         })
         print(f"Completed report for policy {policy_name}: s3://{output_bucket}/{s3_key}")
     except Exception as e:
-        print(f"Error processing policy {policy_arn}: {str(e)}")
+        print(f"Error processing policy {policy_identifier}: {str(e)}")
         generated_reports.append({
-            "policy_arn": policy_arn,
+            "policy_arn": policy_identifier,
             "status": "failed",
             "error": str(e)
         })
 
-def audit_standalone_policy(account_id, policy_arn):
+def audit_standalone_policy(account_id, policy_identifier):
     """Audit a standalone managed policy"""
     detailed_rows = []
     risk_rows = []
     policy_name = ""
+    policy_arn = ""
     
     try:
+        # Resolve policy identifier to ARN
+        policy_arn = resolve_policy_arn(policy_identifier, account_id)
+        
         policy_meta = iam.get_policy(PolicyArn=policy_arn)["Policy"]
         policy_name = policy_meta["PolicyName"]
         default_version_id = policy_meta["DefaultVersionId"]
@@ -323,7 +328,7 @@ def audit_standalone_policy(account_id, policy_arn):
     except Exception as e:
         risk_rows.append({
             "AccountId": account_id,
-            "PolicyName": policy_name or policy_arn,
+            "PolicyName": policy_name or policy_identifier,
             "PolicyArn": policy_arn,
             "Finding": f"Unable to read policy: {str(e)}",
             "Severity": "High",
@@ -333,10 +338,77 @@ def audit_standalone_policy(account_id, policy_arn):
     
     return {
         "status": "success",
-        "policy_name": policy_name or policy_arn,
+        "policy_name": policy_name or policy_identifier,
+        "policy_arn": policy_arn or policy_identifier,
         "detailed_rows": detailed_rows,
         "risk_rows": risk_rows
     }
+
+def resolve_policy_arn(policy_identifier, account_id):
+    """
+    Resolve a policy identifier (name or ARN) to a full policy ARN.
+    
+    Args:
+        policy_identifier: Either a policy ARN or policy name
+        account_id: AWS account ID
+        
+    Returns:
+        Full policy ARN
+        
+    Raises:
+        Exception: If policy cannot be resolved
+    """
+    # If already an ARN, return as-is
+    if policy_identifier.startswith("arn:"):
+        return policy_identifier
+    
+    # Otherwise, treat as policy name and try to find it
+    policy_name = policy_identifier
+    
+    # First, try as customer-managed policy
+    customer_policy_arn = f"arn:aws:iam::{account_id}:policy/{policy_name}"
+    try:
+        iam.get_policy(PolicyArn=customer_policy_arn)
+        print(f"Resolved policy name '{policy_name}' to customer-managed ARN: {customer_policy_arn}")
+        return customer_policy_arn
+    except iam.exceptions.NoSuchEntityException:
+        pass
+    except Exception as e:
+        print(f"Error checking customer-managed policy: {str(e)}")
+    
+    # Try as AWS-managed policy
+    aws_policy_arn = f"arn:aws:iam::aws:policy/{policy_name}"
+    try:
+        iam.get_policy(PolicyArn=aws_policy_arn)
+        print(f"Resolved policy name '{policy_name}' to AWS-managed ARN: {aws_policy_arn}")
+        return aws_policy_arn
+    except iam.exceptions.NoSuchEntityException:
+        pass
+    except Exception as e:
+        print(f"Error checking AWS-managed policy: {str(e)}")
+    
+    # If we can't find it as customer or AWS managed, search all policies
+    try:
+        marker = None
+        while True:
+            params = {"Scope": "Local", "MaxItems": 100}
+            if marker:
+                params["Marker"] = marker
+            response = iam.list_policies(**params)
+            for policy in response.get("Policies", []):
+                if policy["PolicyName"] == policy_name:
+                    found_arn = policy["Arn"]
+                    print(f"Found policy '{policy_name}' via list_policies: {found_arn}")
+                    return found_arn
+            if response.get("IsTruncated"):
+                marker = response.get("Marker")
+            else:
+                break
+    except Exception as e:
+        print(f"Error searching policies: {str(e)}")
+    
+    # If nothing works, raise an error
+    raise Exception(f"Could not find policy: '{policy_name}'. Please provide a valid policy ARN or ensure the policy exists in account {account_id}")
 
 def process_user(user_name, account_id, output_bucket, output_prefix, 
                  include_last_access, include_cloudtrail_usage, 
