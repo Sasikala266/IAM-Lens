@@ -206,11 +206,11 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
             "error": str(e)
         })
 
-def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
+# def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
 def process_policy(policy_identifier, account_id, output_bucket, output_prefix, generated_reports):
     try:
         # Validate policy ARN before processing
-        if not policy_arn or not isinstance(policy_arn, str):
+        # if not policy_arn or not isinstance(policy_arn, str):
         if not policy_identifier or not isinstance(policy_identifier, str):
             print(f"Error: {error_msg}")
             generated_reports.append({
