@@ -2,7 +2,7 @@
 
 # 🔍 IAM Lens
 
-### Automated IAM Role, Policy & User Auditing for AWS
+### Automated IAM Role & Policy Auditing for AWS
 
 ![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -99,8 +99,7 @@ You would need to:
 #### 🎯 What It Does
 
 1. **Extracts IAM Data** 
-   - Retrieves role, user, and policy details via AWS APIs
-   - Fetches IAM user credentials and access information
+   - Retrieves role details, policies, and permissions via AWS APIs
    - Fetches both managed policies (AWS/custom) and inline policies
    - Gathers last access information from IAM Access Advisor
 
@@ -118,7 +117,7 @@ You would need to:
    - Unused permissions (never accessed in X days)
 
 4. **Generates Excel Reports**
-   - Professional formatting with color-coded tabs and risk levels
+   - 5 detailed worksheets covering different aspects
    - Professional formatting with color-coded risk levels
    - Ready to share with stakeholders and compliance teams
    - Stored in S3 with version history
@@ -260,13 +259,7 @@ terraform apply
 
 **2️⃣ Run an Audit**
 ```bash
-  --payload '{"targets": [{"type": "role", "name": "MyApplicationRole"}]}' \
-  output.json
-
-# Or audit an IAM user
 aws lambda invoke \
-  --function-name iam-scanner-lambda \
-  --payload '{"targets": [{"type": "user", "name": "john.doe"}]}' \
   --function-name iam-scanner-lambda \
   --payload '{"role_name": "MyApplicationRole"}' \
   output.json
@@ -290,7 +283,7 @@ aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
 
 **Input:**
 ```json
-  "targets": [{"type": "role", "name": "lambda-execution-role"}]
+{
   "role_name": "lambda-execution-role"
 }
 ```
