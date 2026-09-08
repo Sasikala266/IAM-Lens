@@ -9,7 +9,7 @@
 ![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)
 ![Serverless](https://img.shields.io/badge/Serverless-FD5750?style=for-the-badge&logo=serverless&logoColor=white)
 
-**[Getting Started](docs/getting-started.md)** • **[Features](docs/features.md)** • **[Architecture](docs/architecture.md)** • **[Usage Guide](docs/usage-guide.md)** • **[Videos](docs/videos.md)**
+**[Features](docs/FEATURES.md)** • **[Architecture](docs/ARCHITECTURE.md)** • **[Usage Guide](docs/USAGE.md)**
 
 </div>
 
@@ -202,47 +202,54 @@ You would need to:
 
 > 💡 **No servers to manage, no databases to maintain, no APIs to expose**
 
-For detailed architecture documentation, see [Architecture Guide](docs/architecture.md).
+For detailed architecture documentation, see [Architecture Guide](docs/ARCHITECTURE.md).
 
 ---
 
 ## 📊 What You Get
 
-### Comprehensive Excel Report with 5 Worksheets
+### Excel Reports by Target Type
 
-#### 📄 **Sheet 1: Role Details**
-High-level role information: ARN, creation date, trust policy, last used, tags
+#### Role Reports (5 Sheets)
 
-#### 🔐 **Sheet 2: Detailed Permissions**
+#### 🔐 **Sheet 1: Detailed Permissions**
 Every permission broken down:
 - Policy name and type (AWS Managed / Custom / Inline)
 - AWS service and action (e.g., `s3:GetObject`)
-- Resource constraints
-- Conditions (IP restrictions, MFA, etc.)
-- Access type classification (Read/Write/Delete/Admin)
+- Resource constraints and conditions
+- Access type classification (Read/Write/List/Delete/Admin)
+- Risk flag per permission
 
-#### 📈 **Sheet 3: Service Summary**
+#### 📈 **Sheet 2: Service Summary**
 Aggregated view per AWS service:
-- Count of Read/Write/List/Delete/Admin actions
-- Wildcard detection
-- Risk level assessment
+- Yes/No flags for Read/Write/List/Delete/Admin/Wildcard access
+- Total action and resource counts
 
-#### 🚨 **Sheet 4: Risk Findings**
-Security risks and compliance issues:
+#### 🚨 **Sheet 3: Risk Findings**
+Security risks automatically detected:
 - Wildcard permissions (`*:*`, `s3:*`)
 - Overly permissive resources (`Resource: "*"`)
-- Privilege escalation vectors (`iam:PassRole`)
-- Sensitive service access (IAM, KMS, Secrets Manager)
-- Severity ratings (Low/Medium/High/Critical)
-- Remediation recommendations
+- Privilege escalation vectors (`iam:PassRole`, `sts:AssumeRole`)
+- Sensitive delete actions (s3:DeleteBucket, kms:ScheduleKeyDeletion, etc.)
+- Severity ratings (Low/Medium/High)
 
-#### ⏰ **Sheet 5: Last Access**
-Usage tracking:
-- When each service was last accessed
-- Days since last use
+#### ⏰ **Sheet 4: Last Access**
+Usage tracking via IAM Access Advisor:
+- Per-action last accessed timestamp
 - Identifies unused permissions (removal candidates)
 
-For detailed feature documentation, see [Features Guide](docs/features.md).
+#### 🔎 **Sheet 5: Role Usage CloudTrail**
+Role assumption history:
+- Who assumed the role (AssumeRole / AssumeRoleWithSAML / AssumeRoleWithWebIdentity)
+- Source IP, MFA status, session name
+
+#### Policy Reports (3 Sheets)
+Sheets 1–3 above (no Last Access or CloudTrail tabs — those require an IAM principal).
+
+#### User Reports (5 Sheets)
+Same as Role Reports, with Sheet 5 replaced by **User Activity CloudTrail** — all API calls made by the user.
+
+For detailed feature documentation, see [Features Guide](docs/FEATURES.md).
 
 ---
 
@@ -260,6 +267,9 @@ terraform apply
 
 **2️⃣ Run an Audit**
 ```bash
+# Audit a role
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
   --payload '{"targets": [{"type": "role", "name": "MyApplicationRole"}]}' \
   output.json
 
@@ -267,8 +277,6 @@ terraform apply
 aws lambda invoke \
   --function-name iam-scanner-lambda \
   --payload '{"targets": [{"type": "user", "name": "john.doe"}]}' \
-  --function-name iam-scanner-lambda \
-  --payload '{"role_name": "MyApplicationRole"}' \
   output.json
 ```
 
@@ -290,8 +298,8 @@ aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
 
 **Input:**
 ```json
+{
   "targets": [{"type": "role", "name": "lambda-execution-role"}]
-  "role_name": "lambda-execution-role"
 }
 ```
 
@@ -327,19 +335,16 @@ Step-by-step video guides for deploying and using the IAM Lens.
 
 ### Core Documentation
 
-- **[Getting Started](docs/getting-started.md)** - Prerequisites, deployment, first audit
-- **[Features](docs/features.md)** - Detailed report structure and capabilities
-- **[Architecture](docs/architecture.md)** - System design and component details
-- **[Usage Guide](docs/usage-guide.md)** - Advanced usage, troubleshooting, best practices
-- **[Videos](docs/videos.md)** - Video tutorials and demos
+- **[Features](docs/FEATURES.md)** - Detailed report structure and capabilities
+- **[Architecture](docs/ARCHITECTURE.md)** - System design and component details
+- **[Usage Guide](docs/USAGE.md)** - Advanced usage, troubleshooting, best practices
 
 ### Quick Links
 
-- [Prerequisites](docs/getting-started.md#prerequisites)
-- [Deployment Steps](docs/getting-started.md#deployment)
-- [Input Formats](docs/usage-guide.md#input-formats)
-- [Troubleshooting](docs/usage-guide.md#troubleshooting)
-- [Best Practices](docs/usage-guide.md#best-practices)
+- [Input Formats](docs/USAGE.md#input-formats)
+- [Invoking the Lambda](docs/USAGE.md#invoking-the-lambda-function)
+- [Troubleshooting](docs/USAGE.md#troubleshooting)
+- [Best Practices](docs/USAGE.md#best-practices)
 
 ---
 
@@ -442,6 +447,6 @@ Infrastructure-as-code tool for provisioning AWS resources using declarative con
 
 **Made with ❤️ for AWS Security Teams**
 
-[⬆ Back to Top](#-iam-audit-utility)
+[⬆ Back to Top](#-iam-lens)
 
 </div>

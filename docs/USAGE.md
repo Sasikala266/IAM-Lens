@@ -123,7 +123,7 @@ Audit an IAM role named `MyApplicationRole`:
 ```bash
 aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --payload '{"role_name": "MyApplicationRole"}' \
+  --payload '{"targets": [{"type": "role", "name": "MyApplicationRole"}]}' \
   output.json
 
 cat output.json
@@ -132,13 +132,19 @@ cat output.json
 **Expected Response**:
 ```json
 {
-  "statusCode": 200,
-  "body": {
-    "message": "IAM audit completed successfully",
-    "role_name": "MyApplicationRole",
-    "report_location": "s3://audit-reports-bucket/iam-audit-reports/MyApplicationRole-20240320-143052.xlsx",
-    "timestamp": "2024-03-20T14:30:52Z"
-  }
+  "status": "success",
+  "message": "IAM governance reports generated successfully",
+  "total_targets_processed": 1,
+  "reports": [
+    {
+      "role_name": "MyApplicationRole",
+      "role_arn": "arn:aws:iam::123456789012:role/MyApplicationRole",
+      "file_name": "MyApplicationRole_123456789012_20240320_143052.xlsx",
+      "s3_uri": "s3://audit-reports-bucket/iam-audit-reports/MyApplicationRole_123456789012_20240320_143052.xlsx",
+      "detailed_permission_rows": 47,
+      "risk_rows": 3
+    }
+  ]
 }
 ```
 
@@ -164,16 +170,16 @@ cat output.json
 
 
 
-### Option 2: Audit by Policy ARN
+### Option 2: Audit a Managed Policy
 
-**Use Case**: Audit a specific managed policy
+**Use Case**: Audit a specific managed policy (accepts policy name or full ARN)
 
 ```json
 {
   "targets": [
     {
       "type": "policy",
-      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
+      "name": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
     }
   ]
 }
@@ -207,7 +213,7 @@ cat output.json
     },
     {
       "type": "policy",
-      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
+      "name": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
     },
     {
       "type": "user",
@@ -243,7 +249,6 @@ cat output.json
 
 ```json
 {
-  "output_bucket": "my-audit-bucket",
   "targets": [
     {
       "type": "role",
@@ -251,7 +256,7 @@ cat output.json
     },
     {
       "type": "policy",
-      "arn": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
+      "name": "arn:aws:iam::123456789012:policy/MyCustomPolicy"
     }
   ],
   "include_last_access": true,
@@ -263,7 +268,6 @@ cat output.json
 
 ```json
 {
-  "output_bucket": "my-audit-bucket",
   "role_names": [
     "MyApplicationRole",
     "MyLambdaRole"
@@ -271,6 +275,7 @@ cat output.json
   "include_last_access": true,
   "include_cloudtrail_usage": true
 }
+```
 
 ---
 
@@ -281,6 +286,7 @@ cat output.json
 **Basic Invocation**:
 ```bash
 aws lambda invoke \
+  --function-name iam-scanner-lambda \
   --payload '{"targets": [{"type": "role", "name": "MyRole"}]}' \
   output.json
 ```
@@ -297,17 +303,16 @@ aws lambda invoke \
 ```bash
 aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --payload '{"targets": [{"type": "policy", "arn": "arn:aws:iam::123456789012:policy/MyPolicy"}]}' \
-  --payload '{"role_name": "MyRole"}' \
+  --payload '{"targets": [{"type": "policy", "name": "arn:aws:iam::123456789012:policy/MyPolicy"}]}' \
   output.json
 ```
 
 **With JSON File**:
 ```bash
 # Create input file
-cat > input.json << EOF
+cat > input.json << 'EOF'
+{
   "targets": [{"type": "role", "name": "MyApplicationRole"}]
-  "role_name": "MyApplicationRole"
 }
 EOF
 
@@ -322,8 +327,8 @@ aws lambda invoke \
 ```bash
 aws lambda invoke \
   --function-name iam-scanner-lambda \
+  --invocation-type Event \
   --payload '{"targets": [{"type": "role", "name": "MyRole"}]}' \
-  --payload '{"role_name": "MyRole"}' \
   output.json
 ```
 
@@ -336,8 +341,8 @@ aws lambda invoke \
    - **Event name**: `TestAudit`
    - **Event JSON**:
      ```json
+     {
        "targets": [{"type": "role", "name": "MyApplicationRole"}]
-       "role_name": "MyApplicationRole"
      }
      ```
 5. Click **Test** button
@@ -354,8 +359,8 @@ lambda_client = boto3.client('lambda')
 response = lambda_client.invoke(
     FunctionName='iam-scanner-lambda',
     InvocationType='RequestResponse',
+    Payload=json.dumps({
         'targets': [{'type': 'role', 'name': 'MyApplicationRole'}]
-        'role_name': 'MyApplicationRole'
     })
 )
 
@@ -375,8 +380,8 @@ aws events put-rule \
 
 # Add Lambda as target
 aws events put-targets \
+  --rule weekly-iam-audit \
   --targets "Id"="1","Arn"="arn:aws:lambda:REGION:ACCOUNT:function:iam-scanner-lambda","Input"='{"targets":[{"type":"role","name":"MyRole"}]}'
-  --targets "Id"="1","Arn"="arn:aws:lambda:REGION:ACCOUNT:function:iam-scanner-lambda","Input"='{"role_name":"MyRole"}'
 
 # Grant EventBridge permission to invoke Lambda
 aws lambda add-permission \
@@ -440,18 +445,18 @@ ROLES=$(aws iam list-roles --query 'Roles[*].RoleName' --output text)
 # Audit each role
 for ROLE in $ROLES; do
   echo "Auditing role: $ROLE"
-    --payload "{\"targets\": [{\"type\": \"role\", \"name\": \"$ROLE\"}]}" \
+  aws lambda invoke \
     --function-name iam-scanner-lambda \
-    --payload "{\"role_name\": \"$ROLE\"}" \
+    --payload "{\"targets\": [{\"type\": \"role\", \"name\": \"$ROLE\"}]}" \
     --invocation-type Event \
     output-$ROLE.json
   sleep 2  # Rate limiting
 done
 
 echo "All audits initiated"
-### 1b. Audit All Users in Account
+```
 
-Create a wrapper script to audit all IAM users:
+### 1b. Audit All Users in Account
 
 ```bash
 #!/bin/bash
@@ -473,20 +478,18 @@ done
 echo "All user audits initiated"
 ```
 
-```
-
 ### 2. Compare Role Permissions
 
 ```bash
 # Audit two roles
-  --payload '{"targets": [{"type": "role", "name": "Role1"}]}' \
+aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --payload '{"role_name": "Role1"}' \
+  --payload '{"targets": [{"type": "role", "name": "Role1"}]}' \
   output1.json
 
-  --payload '{"targets": [{"type": "role", "name": "Role2"}]}' \
+aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --payload '{"role_name": "Role2"}' \
+  --payload '{"targets": [{"type": "role", "name": "Role2"}]}' \
   output2.json
 
 # Download reports
@@ -522,8 +525,8 @@ jobs:
       - name: Run IAM Audit
         run: |
           aws lambda invoke \
+            --function-name iam-scanner-lambda \
             --payload '{"targets": [{"type": "role", "name": "ProductionRole"}]}' \
-            --payload '{"role_name": "ProductionRole"}' \
             output.json
           
           cat output.json
@@ -639,7 +642,6 @@ Required IAM actions:
 
 **Symptom**: `NoSuchEntity` error when auditing role
 
-aws iam get-role --role-name MyApplicationRole
 ```bash
 aws iam get-role --role-name MyApplicationRole
 ```

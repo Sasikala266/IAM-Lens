@@ -2,5 +2,4 @@
 # boto3 and botocore are provided by AWS Lambda runtime
 boto3>=1.28.0
 botocore>=1.31.0
-pandas
 openpyxl

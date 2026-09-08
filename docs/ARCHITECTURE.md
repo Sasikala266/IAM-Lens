@@ -26,7 +26,7 @@ The IAM Audit Utility is a serverless solution designed to automate IAM role and
   │                                                           │
   │  ┌────────────────────────────────────────────────────┐  │
   │  │  Step 1: Input Processing                          │  │
-  │  │  - Parse role_name or policy_arn from event       │  │
+  │  │  - Parse targets array (role/policy/user)         │  │
   │  └────────────────────────────────────────────────────┘  │
   │                        │                                  │
   │                        ▼                                  │
@@ -53,12 +53,13 @@ The IAM Audit Utility is a serverless solution designed to automate IAM role and
   │                        ▼                                  │
   │  ┌────────────────────────────────────────────────────┐  │
   │  │  Step 4: Report Generation (OpenPyXL)             │  │
-  │  │  - Create 5 Excel sheets:                         │  │
-  │  │    1. Role Details                                │  │
-  │  │    2. Detailed Permissions                        │  │
-  │  │    3. Service Summary                             │  │
-  │  │    4. Risk Findings                               │  │
-  │  │    5. Last Access                                 │  │
+  │  │  - Role/User reports: 5 Excel sheets              │  │
+  │  │    1. Detailed Permissions                        │  │
+  │  │    2. Service Summary                             │  │
+  │  │    3. Risk Findings                               │  │
+  │  │    4. Last Access                                 │  │
+  │  │    5. Role Usage / User Activity (CloudTrail)     │  │
+  │  │  - Policy reports: 3 sheets (sheets 1–3 only)     │  │
   │  └────────────────────────────────────────────────────┘  │
   │                        │                                  │
   │                        ▼                                  │
@@ -86,10 +87,10 @@ The IAM Audit Utility is a serverless solution designed to automate IAM role and
          │      AWS Services Queried         │
          │  (Read-Only Access)               │
          │                                   │
-         │  • IAM Roles                      │
-         │  • IAM Policies                   │
+         │  • IAM Roles, Users, Policies     │
          │  • Policy Versions                │
          │  • Access Advisor (Last Access)   │
+         │  • CloudTrail (Usage History)     │
          └───────────────────────────────────┘
 ```
 
@@ -140,9 +141,7 @@ The IAM Audit Utility is a serverless solution designed to automate IAM role and
 ## Data Flow
 
 ### Input Stage
-1. User invokes Lambda with test event containing:
-   - `role_name`: IAM role to audit (required)
-   - `policy_arn`: Specific policy ARN (optional)
+1. User invokes Lambda with a structured event containing a `targets` array. Each target specifies a `type` (`role`, `policy`, or `user`) and a `name` (role/user name or policy name/ARN). The legacy `role_names` array format is also supported for backward compatibility.
 
 ### Processing Stage
 2. Lambda function retrieves IAM configuration:

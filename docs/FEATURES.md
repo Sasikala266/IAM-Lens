@@ -72,15 +72,10 @@ For IAM users, the report includes:
 - Includes both attached and inline policies
 - Shows resource-level constraints
 - Displays conditional access requirements
-**Use Case**: 
-- Deep-dive permission analysis
-- Compliance verification
-- Least-privilege reviews
 **Use Case**: Deep-dive permission analysis, compliance verification, least-privilege reviews
 
 ---
 ### Sheet 2: Service Summary
-### Sheet 3: Service Summary
 
 **Purpose**: Aggregated view of access levels per AWS service
 
@@ -303,7 +298,6 @@ Reviews who can assume the role:
 ## Report Output Format
 
 - **File Naming**: `{target-name}_{account-id}_{timestamp}.xlsx`
-- **File Naming**: `iam-audit-{role-name}-{timestamp}.xlsx`
 - **Storage**: Amazon S3 bucket with encryption
 - **Retention**: Configurable via S3 lifecycle policies
 - **Accessibility**: Download via AWS Console or AWS CLI

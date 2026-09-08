@@ -209,13 +209,12 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
 # def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
 def process_policy(policy_identifier, account_id, output_bucket, output_prefix, generated_reports):
     try:
-        # Validate policy ARN before processing
-        # if not policy_arn or not isinstance(policy_arn, str):
         if not policy_identifier or not isinstance(policy_identifier, str):
+            error_msg = "Invalid policy identifier: must be a non-empty string"
             print(f"Error: {error_msg}")
             generated_reports.append({
-                "policy_arn": str(policy_arn),
-                "policy_arn": str(policy_identifier),
+                "policy_identifier": str(policy_identifier),
+                "status": "failed",
                 "error": error_msg
             })
             return
@@ -679,79 +678,10 @@ def parse_user_policy_document(
     policy_name, policy_type, policy_document
 ):
     """Parse IAM policy document for user permissions"""
-    rows = []
-    risks = []
-    statements = policy_document.get("Statement", [])
-    if isinstance(statements, dict):
-        statements = [statements]
-    
-    for statement in statements:
-        sid = statement.get("Sid", "")
-        effect = statement.get("Effect", "")
-        actions = statement.get("Action", [])
-        not_actions = statement.get("NotAction", [])
-        resources = statement.get("Resource", [])
-        not_resources = statement.get("NotResource", [])
-        condition = statement.get("Condition", {})
-        
-        actions = ensure_list(actions)
-        not_actions = ensure_list(not_actions)
-        resources = ensure_list(resources)
-        not_resources = ensure_list(not_resources)
-        
-        action_items = actions if actions else [f"NOT_ACTION::{item}" for item in not_actions]
-        resource_items = resources if resources else [f"NOT_RESOURCE::{item}" for item in not_resources]
-        if not resource_items:
-            resource_items = [""]
-        
-        for action in action_items:
-            service, action_name = split_action(action)
-            access_type = classify_access_type(service, action_name)
-            full_action = f"{service}:{action_name}" if service != "Unknown" else action_name
-            
-            for resource in resource_items:
-                resource_level = classify_resource_level(service, resource)
-                risk_flag = identify_risk_flag(
-                    effect=effect,
-                    service=service,
-                    action_name=action_name,
-                    resource=resource,
-                    condition=condition
-                )
-                
-                row = {
-                    "AccountId": account_id,
-                    "InputType": input_type,
-                    "UserName": user_name,
-                    "PolicyArn": policy_arn,
-                    "UserArn": user_arn,
-                    "PolicyName": policy_name,
-                    "PolicyType": policy_type,
-                    "StatementSid": sid,
-                    "Effect": effect,
-                    "Service": service,
-                    "Action": action_name,
-                    "FullAction": full_action,
-                    "AccessType": access_type,
-                    "Resource": resource,
-                    "ResourceLevel": resource_level,
-                    "Condition": json.dumps(condition) if condition else "",
-                    "RiskFlag": risk_flag
-                }
-                rows.append(row)
-                
-                if risk_flag:
-                    risks.append({
-                        "AccountId": account_id,
-                        "UserName": user_name,
-                        "PolicyName": policy_name,
-                        "Finding": risk_flag,
-                        "Severity": classify_risk_severity(risk_flag),
-                        "Resource": resource,
-                        "Action": full_action
-                    })
-    
-    return rows, risks
+    return _parse_policy_document_internal(
+        account_id, input_type, "UserName", user_name, "UserArn", user_arn,
+        policy_arn, policy_name, policy_type, policy_document
+    )
 
 def get_user_last_access_info(account_id, user_name, user_arn):
     """Get last access information for IAM user"""
@@ -1120,15 +1050,9 @@ def normalize_policy_document(policy_document):
         return json.loads(decoded)
     return policy_document
 
-def parse_policy_document(
-    account_id,
-    input_type,
-    role_name,
-    policy_arn,
-    role_arn,
-    policy_name,
-    policy_type,
-    policy_document
+def _parse_policy_document_internal(
+    account_id, input_type, entity_name_key, entity_name,
+    entity_arn_key, entity_arn, policy_arn, policy_name, policy_type, policy_document
 ):
     rows = []
     risks = []
@@ -1138,17 +1062,13 @@ def parse_policy_document(
     for statement in statements:
         sid = statement.get("Sid", "")
         effect = statement.get("Effect", "")
-        actions = statement.get("Action", [])
-        not_actions = statement.get("NotAction", [])
-        resources = statement.get("Resource", [])
-        not_resources = statement.get("NotResource", [])
         condition = statement.get("Condition", {})
-        actions = ensure_list(actions)
-        not_actions = ensure_list(not_actions)
-        resources = ensure_list(resources)
-        not_resources = ensure_list(not_resources)
-        action_items = actions if actions else [f"NOT_ACTION::{item}" for item in not_actions]
-        resource_items = resources if resources else [f"NOT_RESOURCE::{item}" for item in not_resources]
+        actions = ensure_list(statement.get("Action", []))
+        not_actions = ensure_list(statement.get("NotAction", []))
+        resources = ensure_list(statement.get("Resource", []))
+        not_resources = ensure_list(statement.get("NotResource", []))
+        action_items = actions if actions else [f"NOT_ACTION::{a}" for a in not_actions]
+        resource_items = resources if resources else [f"NOT_RESOURCE::{r}" for r in not_resources]
         if not resource_items:
             resource_items = [""]
         for action in action_items:
@@ -1157,19 +1077,13 @@ def parse_policy_document(
             full_action = f"{service}:{action_name}" if service != "Unknown" else action_name
             for resource in resource_items:
                 resource_level = classify_resource_level(service, resource)
-                risk_flag = identify_risk_flag(
-                    effect=effect,
-                    service=service,
-                    action_name=action_name,
-                    resource=resource,
-                    condition=condition
-                )
+                risk_flag = identify_risk_flag(effect, service, action_name, resource, condition)
                 row = {
                     "AccountId": account_id,
                     "InputType": input_type,
-                    "RoleName": role_name,
+                    entity_name_key: entity_name,
                     "PolicyArn": policy_arn,
-                    "RoleArn": role_arn,
+                    entity_arn_key: entity_arn,
                     "PolicyName": policy_name,
                     "PolicyType": policy_type,
                     "StatementSid": sid,
@@ -1187,7 +1101,7 @@ def parse_policy_document(
                 if risk_flag:
                     risks.append({
                         "AccountId": account_id,
-                        "RoleName": role_name,
+                        entity_name_key: entity_name,
                         "PolicyName": policy_name,
                         "Finding": risk_flag,
                         "Severity": classify_risk_severity(risk_flag),
@@ -1195,6 +1109,15 @@ def parse_policy_document(
                         "Action": full_action
                     })
     return rows, risks
+
+def parse_policy_document(
+    account_id, input_type, role_name, policy_arn, role_arn,
+    policy_name, policy_type, policy_document
+):
+    return _parse_policy_document_internal(
+        account_id, input_type, "RoleName", role_name, "RoleArn", role_arn,
+        policy_arn, policy_name, policy_type, policy_document
+    )
 
 def ensure_list(value):
     if value is None:
@@ -1363,6 +1286,9 @@ def classify_risk_severity(risk_flag):
     return "Low"
 
 def build_service_summary(detailed_rows):
+    if not detailed_rows:
+        return []
+    entity_key = "UserName" if "UserName" in detailed_rows[0] else "RoleName"
     summary = defaultdict(lambda: {
         "Read": "No",
         "Write": "No",
@@ -1378,7 +1304,7 @@ def build_service_summary(detailed_rows):
     for row in detailed_rows:
         key = (
             row.get("AccountId", ""),
-            row.get("RoleName", ""),
+            row.get(entity_key, ""),
             row.get("PolicyName", ""),
             row.get("Service", "")
         )
@@ -1395,10 +1321,10 @@ def build_service_summary(detailed_rows):
         if full_action:
             summary[key]["Actions"].add(full_action)
     rows = []
-    for (account_id, role_name, policy_name, service), values in summary.items():
+    for (account_id, entity_name, policy_name, service), values in summary.items():
         rows.append({
             "AccountId": account_id,
-            "RoleName": role_name,
+            entity_key: entity_name,
             "PolicyName": policy_name,
             "Service": service,
             "Read": values["Read"],
