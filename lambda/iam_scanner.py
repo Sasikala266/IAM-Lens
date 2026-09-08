@@ -299,6 +299,52 @@ def process_policy(policy_arn, account_id, output_bucket, output_prefix, generat
         })
 
 def audit_standalone_policy(account_id, policy_arn):
+    """Audit a standalone managed policy"""
+    detailed_rows = []
+    risk_rows = []
+    policy_name = ""
+    
+    try:
+        policy_meta = iam.get_policy(PolicyArn=policy_arn)["Policy"]
+        policy_name = policy_meta["PolicyName"]
+        default_version_id = policy_meta["DefaultVersionId"]
+        
+        version_response = iam.get_policy_version(
+            PolicyArn=policy_arn,
+            VersionId=default_version_id
+        )
+        
+        policy_document = normalize_policy_document(
+            version_response["PolicyVersion"]["Document"]
+        )
+        
+        detailed_rows, risk_rows = parse_policy_document(
+            account_id=account_id,
+            input_type="Policy",
+            role_name="",
+            policy_arn=policy_arn,
+            role_arn="",
+            policy_name=policy_name,
+            policy_type="Managed",
+            policy_document=policy_document
+        )
+    except Exception as e:
+        risk_rows.append({
+            "AccountId": account_id,
+            "PolicyName": policy_name or policy_arn,
+            "PolicyArn": policy_arn,
+            "Finding": f"Unable to read policy: {str(e)}",
+            "Severity": "High",
+            "Resource": "",
+            "Action": ""
+        })
+    
+    return {
+        "policy_name": policy_name or policy_arn,
+        "detailed_rows": detailed_rows,
+        "risk_rows": risk_rows
+    }
+
 def process_user(user_name, account_id, output_bucket, output_prefix, 
                  include_last_access, include_cloudtrail_usage, 
                  cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports):
@@ -870,52 +916,6 @@ def parse_user_cloudtrail_event(account_id, user_name, user_arn, event):
             "Status": f"Unable to parse event: {str(e)}"
         }
 
-    """Audit a standalone managed policy"""
-    detailed_rows = []
-    risk_rows = []
-    policy_name = ""
-    
-    try:
-        policy_meta = iam.get_policy(PolicyArn=policy_arn)["Policy"]
-        policy_name = policy_meta["PolicyName"]
-        default_version_id = policy_meta["DefaultVersionId"]
-        
-        version_response = iam.get_policy_version(
-            PolicyArn=policy_arn,
-            VersionId=default_version_id
-        )
-        
-        policy_document = normalize_policy_document(
-            version_response["PolicyVersion"]["Document"]
-        )
-        
-        detailed_rows, risk_rows = parse_policy_document(
-            account_id=account_id,
-            input_type="Policy",
-            role_name="",
-            policy_arn=policy_arn,
-            role_arn="",
-            policy_name=policy_name,
-            policy_type="Managed",
-            policy_document=policy_document
-        )
-    except Exception as e:
-        risk_rows.append({
-            "AccountId": account_id,
-            "PolicyName": policy_name or policy_arn,
-            "PolicyArn": policy_arn,
-            "Finding": f"Unable to read policy: {str(e)}",
-            "Severity": "High",
-            "Resource": "",
-            "Action": ""
-        })
-    
-    return {
-        "status": "success",
-        "policy_name": policy_name or policy_arn,
-        "detailed_rows": detailed_rows,
-        "risk_rows": risk_rows
-    }
 
 def audit_role(account_id, role_name):
     detailed_rows = []
