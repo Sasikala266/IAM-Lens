@@ -361,10 +361,10 @@ aws lambda invoke \
 
 ```bash
 # List generated reports
-aws s3 ls s3://sasi-audit-reports-bucket/iam-audit-reports/
+aws s3 ls s3://your-s3-bucket/iam-audit-reports/
 
 # Download a specific report
-aws s3 cp s3://sasi-audit-reports-bucket/iam-audit-reports/MyApplicationRole_*.xlsx ./
+aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole_*.xlsx ./
 ```
 
 > The S3 bucket name is the value of `s3_bucket_name` in `variables.tf` (default: `sasi-audit-reports-bucket`). Update it to a globally unique name before deploying.

@@ -97,7 +97,7 @@ Discover:
 **Watch step-by-step guides**
 
 View:
-- Deployment walkthrough
+
 - Running audits demo
 - Report interpretation
 - Advanced features
