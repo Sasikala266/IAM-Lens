@@ -109,7 +109,7 @@ View:
 
 ---
 
-## 🗺️ Quick Navigation
+## 🧭 Quick Navigation
 
 ### By Task
 
