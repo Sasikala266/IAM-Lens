@@ -10,12 +10,21 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-iam = boto3.client("iam")
-s3 = boto3.client("s3")
-sts = boto3.client("sts")
-cloudtrail = boto3.client("cloudtrail")
+# Initialize clients as None - will be created in lambda_handler
+iam = None
+s3 = None
+sts = None
+cloudtrail = None
 
 def lambda_handler(event, context):
+    # Initialize boto3 clients (supports container reuse)
+    global iam, s3, sts, cloudtrail
+    if iam is None:
+        iam = boto3.client("iam")
+        s3 = boto3.client("s3")
+        sts = boto3.client("sts")
+        cloudtrail = boto3.client("cloudtrail")
+    
     output_bucket = os.environ["S3_BUCKET_NAME"]
     output_prefix = os.environ.get("REPORT_PREFIX","iam-audit-reports")
     include_last_access = event.get("include_last_access", True)
@@ -171,7 +180,7 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
                 "Severity": "Info",
                 "Resource": "",
                 "Action": ""
-            }]
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         safe_role_name = sanitize_name(role_name)
         file_name = f"{safe_role_name}_{account_id}_{timestamp}.xlsx"
@@ -186,6 +195,11 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
             role_usage_rows=role_usage_rows
         )
         s3.upload_file(local_path, output_bucket, s3_key)
+        # Clean up temporary file
+        try:
+            os.remove(local_path)
+        except Exception:
+            pass  # Ignore cleanup errors
         generated_reports.append({
             "role_name": role_name,
             "role_arn": role_arn,
@@ -206,16 +220,16 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
             "error": str(e)
         })
 
-# def process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports):
 def process_policy(policy_identifier, account_id, output_bucket, output_prefix, generated_reports):
+    """Process a single policy and generate report"""
     try:
         # Validate policy ARN before processing
-        # if not policy_arn or not isinstance(policy_arn, str):
         if not policy_identifier or not isinstance(policy_identifier, str):
+            error_msg = "Invalid policy identifier: must be a non-empty string"
             print(f"Error: {error_msg}")
             generated_reports.append({
-                "policy_arn": str(policy_arn),
                 "policy_arn": str(policy_identifier),
+                "status": "failed",
                 "error": error_msg
             })
             return
@@ -259,7 +273,7 @@ def process_policy(policy_identifier, account_id, output_bucket, output_prefix, 
                 "Action": ""
             }]
         
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_policy_name = sanitize_name(policy_name)
         file_name = f"{safe_policy_name}_{account_id}_{timestamp}.xlsx"
         local_path = f"/tmp/{file_name}"
@@ -274,6 +288,11 @@ def process_policy(policy_identifier, account_id, output_bucket, output_prefix, 
         
         s3.upload_file(local_path, output_bucket, s3_key)
         
+        # Clean up temporary file
+        try:
+            os.remove(local_path)
+        except Exception:
+            pass  # Ignore cleanup errors
         generated_reports.append({
             "policy_name": policy_name,
             "policy_arn": policy_arn,
@@ -496,7 +515,7 @@ def process_user(user_name, account_id, output_bucket, output_prefix,
                 "Action": ""
             }]
         
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_user_name = sanitize_name(user_name)
         file_name = f"{safe_user_name}_{account_id}_{timestamp}.xlsx"
         local_path = f"/tmp/{file_name}"
@@ -513,6 +532,11 @@ def process_user(user_name, account_id, output_bucket, output_prefix,
         
         s3.upload_file(local_path, output_bucket, s3_key)
         
+        # Clean up temporary file
+        try:
+            os.remove(local_path)
+        except Exception:
+            pass  # Ignore cleanup errors
         generated_reports.append({
             "user_name": user_name,
             "user_arn": user_arn,
@@ -1387,10 +1411,7 @@ def build_service_summary(detailed_rows):
         full_action = row.get("FullAction", "")
         valid_access_types = ["Read", "Write", "List", "Delete", "Admin", "Wildcard", "PermissionManagement"]
         if access_type in valid_access_types:
-            summary[key][access_type] = "Yes"
-        else:
-            summary[key]["Other"] = "Yes"
-        if resource:
+        summary[key][access_type if access_type in valid_access_types else "Other"] = "Yes"
             summary[key]["Resources"].add(resource)
         if full_action:
             summary[key]["Actions"].add(full_action)
@@ -1670,15 +1691,13 @@ def parse_cloudtrail_assume_role_event(account_id, target_role_name, target_role
             "Status": f"Unable to parse CloudTrail event: {str(e)}"
         }
 
-def write_excel_report(
+def write_excel_report_for_role(
     local_path,
     detailed_rows,
     summary_rows,
     risk_rows,
     last_access_rows,
-    role_usage_rows,
-):
-    """Write Excel report for roles with all 5 tabs"""
+    role_usage_rows
     wb = Workbook()
     default_sheet = wb.active
     wb.remove(default_sheet)
@@ -1688,14 +1707,6 @@ def write_excel_report(
     add_sheet(wb, "Last Access", last_access_rows)
     add_sheet(wb, "Role Usage CloudTrail", role_usage_rows)
     wb.save(local_path)
-def write_excel_report_for_role(
-    local_path,
-    detailed_rows,
-    summary_rows,
-    risk_rows,
-    last_access_rows,
-    role_usage_rows
-):
     """Write Excel report for roles with all 5 tabs"""
     write_excel_report(local_path, detailed_rows, summary_rows, risk_rows, last_access_rows, role_usage_rows)
 

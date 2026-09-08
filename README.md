@@ -2,7 +2,7 @@
 
 # 🔍 IAM Lens
 
-### Automated IAM Role & Policy Auditing for AWS
+### Automated IAM Role, Policy & User Auditing for AWS
 
 ![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -99,8 +99,9 @@ You would need to:
 #### 🎯 What It Does
 
 1. **Extracts IAM Data** 
-   - Retrieves role details, policies, and permissions via AWS APIs
+   - Retrieves role, policy, and user details via AWS APIs
    - Fetches both managed policies (AWS/custom) and inline policies
+   - Tracks CloudTrail activity for role assumptions and user actions
    - Gathers last access information from IAM Access Advisor
 
 2. **Analyzes Permissions**
@@ -143,8 +144,13 @@ You would need to:
 
   👤 User / ⏰ Scheduler
          │
-         │ 1️⃣ Invoke with role name
-         │    {"role_name": "MyAppRole"}
+         │ 1️⃣ Invoke with targets
+         │    {
+         │      "targets": [
+         │        {"type": "role", "name": "MyAppRole"},
+         │        {"type": "user", "name": "john.doe"}
+         │      ]
+         │    }
          ▼
   ┌─────────────────────────────────────────┐
   │      🐍 AWS Lambda Function             │
@@ -154,6 +160,7 @@ You would need to:
   │  │ 📥 Fetch IAM Data (boto3)         │ │
   │  │  • Role details & trust policy    │ │
   │  │  • Managed policies (AWS/Custom)  │ │
+  │  │  • IAM user permissions           │ │
   │  │  • Inline policies                │ │
   │  │  • Last access information        │ │
   │  └────────────────────────────────────┘ │
@@ -164,6 +171,7 @@ You would need to:
   │  │  • Parse policy JSON               │ │
   │  │  • Classify actions & services     │ │
   │  │  • Detect security risks           │ │
+  │  │  • Track CloudTrail activity       │ │
   │  │  • Identify unused permissions     │ │
   │  └────────────────────────────────────┘ │
   │             │                            │
@@ -259,16 +267,48 @@ terraform apply
 
 **2️⃣ Run an Audit**
 ```bash
+# Audit an IAM Role
 aws lambda invoke \
   --function-name iam-scanner-lambda \
-  --payload '{"role_name": "MyApplicationRole"}' \
+  --payload '{"targets": [{"type": "role", "name": "MyApplicationRole"}]}' \
+  output.json
+
+# Audit an IAM Policy
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "policy", "name": "MyCustomPolicy"}]}' \
+  output.json
+
+# Audit an IAM User
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "user", "name": "john.doe"}]}' \
+  output.json
+
+# Audit multiple targets at once
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "role", "name": "AppRole"}, {"type": "user", "name": "admin"}]}' \
   output.json
 ```
 
 **3️⃣ Download the Report**
 ```bash
 aws s3 ls s3://your-s3-bucket/iam-audit-reports/
-aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
+aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole_*.xlsx ./
+```
+
+**Input Format Options:**
+
+The Lambda accepts a structured format with multiple entity types:
+```json
+{
+  "targets": [
+    {"type": "role", "name": "RoleName"},
+    {"type": "policy", "name": "PolicyNameOrArn"},
+    {"type": "user", "name": "UserName"}
+  ]
+}
 ```
 
 **That's it!** Open the Excel file and review your audit.
@@ -279,12 +319,28 @@ aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole-*.xlsx ./
 
 ## 📸 Sample Output
 
-### Example: Auditing a Lambda Execution Role
+### Example 1: Auditing a Lambda Execution Role
 
 **Input:**
 ```json
 {
-  "role_name": "lambda-execution-role"
+  "targets": [{"type": "role", "name": "lambda-execution-role"}]
+}
+```
+
+**Output Report Includes:**
+- ✅ Role has access to **3 AWS services**: S3, DynamoDB, CloudWatch Logs
+- ✅ Total of **47 permissions** granted across managed and inline policies
+- ⚠️ **2 Medium-risk findings**: Wildcard S3 access, no resource-level constraints
+- ⚠️ **1 unused service**: DynamoDB (not accessed in 90 days)
+- ℹ️ **Recommendation**: Remove DynamoDB permissions, add resource constraints to S3
+
+### Example 2: Auditing an IAM User
+
+**Input:**
+```json
+{
+  "targets": [{"type": "user", "name": "developer-user"}]
 }
 ```
 
