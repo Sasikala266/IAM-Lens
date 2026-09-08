@@ -40,18 +40,10 @@ def lambda_handler(event, context):
                     "name": target.get("name", "")
                 })
             elif target_type == "policy":
-                policy_arn = target.get("arn", "").strip()
-                # Validate that policy ARN is provided and meets minimum length requirement
-                if not policy_arn:
-                    print(f"Warning: Skipping policy target with empty ARN: {target}")
-                elif len(policy_arn) < 20:
-                    print(f"Warning: Skipping policy target with invalid ARN (too short): {policy_arn}")
-                else:
-                    targets_to_process.append({
-                        "type": "policy",
-                        "arn": policy_arn
-                    })
-    # Legacy support for role_names
+                targets_to_process.append({
+                    "type": "policy",
+                    "name": target.get("name", "")
+                })
             elif target_type == "user":
                 user_name = target.get("name", "").strip()
                 if not user_name:
@@ -72,7 +64,7 @@ def lambda_handler(event, context):
     if not targets_to_process:
         return {
             "status": "failed",
-            "message": "Please provide at least one target in 'targets' array or use 'role_names' (legacy)"
+            "message": "Please provide at least one IAM Role/Policy/User"
         }
     
     # Process each target
@@ -83,7 +75,7 @@ def lambda_handler(event, context):
                         include_last_access, include_cloudtrail_usage, 
                         cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports)
         elif target["type"] == "policy":
-            policy_arn = target["arn"]
+            policy_arn = target["name"]
             process_policy(policy_arn, account_id, output_bucket, output_prefix, generated_reports)
         elif target["type"] == "user":
             user_name = target["name"]
@@ -298,7 +290,7 @@ def process_policy(policy_arn, account_id, output_bucket, output_prefix, generat
             "error": str(e)
         })
 
-def audit_standalone_policy(account_id, policy_arn):
+# def audit_standalone_policy(account_id, policy_arn):
 def process_user(user_name, account_id, output_bucket, output_prefix, 
                  include_last_access, include_cloudtrail_usage, 
                  cloudtrail_lookup_days, cloudtrail_max_pages, generated_reports):
