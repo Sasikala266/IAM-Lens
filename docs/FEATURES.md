@@ -1,8 +1,8 @@
-# IAM Audit Utility - Features Documentation
+# IAM Lens - Features Documentation
 
 ## Overview
 
-The IAM Audit Utility provides comprehensive IAM role and policy analysis through automated scanning and reporting. It answers critical security audit questions:
+The IAM Lens provides comprehensive IAM role and policy analysis through automated scanning and reporting. It answers critical security audit questions:
 
 - **Which resources** can access **what services**?
 - **What actions** can be performed?
@@ -223,7 +223,7 @@ Reviews who can assume the role:
 
 ## Benefits Over Manual Auditing
 
-| Manual Approach | IAM Audit Utility |
+| Manual Approach | IAM Lens |
 |-----------------|-------------------|
 | Multiple AWS consoles | Single automated report |
 | Hours of manual work | Minutes of execution |

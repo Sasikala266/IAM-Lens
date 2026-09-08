@@ -12,7 +12,7 @@
 
 ## 📋 Overview
 
-This page contains video tutorials and demos for the IAM Audit Utility. Videos cover deployment, usage, and advanced features.
+This page contains video tutorials and demos for the IAM Lens. Videos cover deployment, usage, and advanced features.
 
 > 🚧 **Note**: Video content is currently being prepared. Check back soon for updates!
 
@@ -22,9 +22,9 @@ This page contains video tutorials and demos for the IAM Audit Utility. Videos c
 
 ### 🚀 Getting Started Series
 
-#### 1. Introduction to IAM Audit Utility (5 minutes)
+#### 1. Introduction to IAM Lens (5 minutes)
 **Topics covered:**
-- ❓ What is the IAM Audit Utility?
+- ❓ What is the IAM Lens?
 - 🎯 Problem statement and use cases
 - 💡 Solution overview
 - 🏗️ Architecture walkthrough
@@ -195,7 +195,7 @@ While video tutorials are being prepared, you can refer to:
 
 ## 🎬 Contributing Videos
 
-Have you created a tutorial or demo for the IAM Audit Utility?
+Have you created a tutorial or demo for the IAM Lens?
 
 **We'd love to feature it!**
 

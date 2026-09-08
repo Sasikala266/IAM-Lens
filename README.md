@@ -491,6 +491,6 @@ Infrastructure-as-code tool for provisioning AWS resources using declarative con
 
 **Made with ❤️ for AWS Security Teams**
 
-[⬆ Back to Top](#-iam-audit-utility)
+[⬆ Back to Top](#-iam-lens)
 
 </div>

@@ -1,14 +1,14 @@
-# IAM Audit Utility - Architecture Documentation
+# IAM Lens - Architecture Documentation
 
 ## Overview
 
-The IAM Audit Utility is a serverless solution designed to automate IAM role, policy, and user auditing in AWS. It eliminates the need for manual audits using multiple AWS services (IAM Console, APIs, CloudTrail, Access Advisor) by consolidating all audit information in a single, comprehensive Excel report.
+The IAM Lens is a serverless solution designed to automate IAM role, policy, and user auditing in AWS. It eliminates the need for manual audits using multiple AWS services (IAM Console, APIs, CloudTrail, Access Advisor) by consolidating all audit information in a single, comprehensive Excel report.
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          IAM Audit Utility Flow                          │
+│                          IAM Lens Flow                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
   ┌──────────────┐

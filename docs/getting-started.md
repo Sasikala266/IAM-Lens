@@ -22,7 +22,7 @@
 
 ## ✅ Prerequisites
 
-Before deploying the IAM Audit Utility, ensure you have the following:
+Before deploying the IAM Lens, ensure you have the following:
 
 ### Required Tools
 
@@ -126,7 +126,7 @@ Should return your AWS account ID and user ARN.
 
 ```bash
 git clone <repository-url>
-cd iam-audit-utility
+cd iam-lens
 ```
 
 ### Step 2: Review Configuration (Optional)
