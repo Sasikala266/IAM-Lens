@@ -9,7 +9,7 @@
 ![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)
 ![Serverless](https://img.shields.io/badge/Serverless-FD5750?style=for-the-badge&logo=serverless&logoColor=white)
 
-**[Getting Started](docs/getting-started.md)** • **[Features](docs/features.md)** • **[Architecture](docs/architecture.md)** • **[Usage Guide](docs/usage-guide.md)** • **[Videos](docs/videos.md)**
+**[Features](docs/FEATURES.md)** • **[Architecture](docs/ARCHITECTURE.md)** • **[Usage Guide](docs/USAGE.md)**
 
 </div>
 
@@ -255,28 +255,87 @@ For detailed feature documentation, see [Features Guide](docs/features.md).
 
 ## 🚀 Quick Start
 
-### 3 Steps to Your First Audit
+### Deploy to Your Own AWS Account
 
-**1️⃣ Deploy the Infrastructure**
+IAM Lens is designed to be deployed into **your own AWS environment**. The recommended path uses GitHub Actions to run Terraform automatically — no local tooling required beyond the AWS CLI for running audits.
+
+---
+
+### Option A: GitHub Actions (Recommended)
+
+This is the standard open-source workflow. The CI/CD pipeline handles all infrastructure deployment for you.
+
+**1️⃣ Fork the repository**
+
+Click **Fork** at the top-right of this page to create your own copy under your GitHub account. This gives you full control to customize the configuration and deploy to your AWS environment.
+
+**2️⃣ Configure AWS credentials in GitHub Secrets**
+
+Go to your forked repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**, and add:
+
+| Secret name | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Your AWS access key ID |
+| `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key |
+
+The IAM user or role these credentials belong to needs permissions to create Lambda functions, S3 buckets, IAM roles, and CloudWatch log groups (standard Terraform deployment permissions).
+
+**3️⃣ Update the Terraform backend (one-time setup)**
+
+Edit `versions.tf` in your fork and replace the S3 backend values with your own:
+
+```hcl
+backend "s3" {
+  bucket = "your-terraform-state-bucket"   # ← your S3 bucket for Terraform state
+  key    = "IAM-Lens/terraform.tfstate"
+  region = "us-east-1"
+}
+```
+
+> 💡 If you don't have a Terraform state bucket yet, create one in S3, or remove the `backend "s3"` block entirely to use local state for testing.
+
+**4️⃣ Deploy — push to main**
+
+Commit your `versions.tf` change and push to `main`. The **Terraform Deploy** GitHub Actions workflow triggers automatically and runs:
+
+```
+terraform init → terraform validate → terraform plan → terraform apply
+```
+
+Track progress under the **Actions** tab of your repo. Deployment typically takes 1–2 minutes.
+
+You can also trigger it manually: **Actions** → **Terraform Deploy** → **Run workflow**.
+
+---
+
+### Option B: Local Deployment
+
+Prefer to run everything from your machine? Install [Terraform ≥ 1.6](https://developer.hashicorp.com/terraform/downloads) and the [AWS CLI](https://aws.amazon.com/cli/), configure your credentials, then:
+
 ```bash
-git clone <repository-url>
-cd iam-lens
+# Clone (or fork first, then clone your fork)
+git clone https://github.com/your-org/IAM-Lens.git
+cd IAM-Lens
+
+# (Optional) switch to local state — edit versions.tf to remove the backend "s3" block
+# or update it to point to your own state bucket
+
 terraform init
+terraform plan
 terraform apply
 ```
 
-**2️⃣ Run an Audit**
+---
+
+### 5️⃣ Run Your First Audit
+
+Once deployed, invoke the Lambda from the AWS CLI (or the Lambda Console test tab):
+
 ```bash
 # Audit an IAM Role
 aws lambda invoke \
   --function-name iam-scanner-lambda \
   --payload '{"targets": [{"type": "role", "name": "MyApplicationRole"}]}' \
-  output.json
-
-# Audit an IAM Policy
-aws lambda invoke \
-  --function-name iam-scanner-lambda \
-  --payload '{"targets": [{"type": "policy", "name": "MyCustomPolicy"}]}' \
   output.json
 
 # Audit an IAM User
@@ -285,35 +344,34 @@ aws lambda invoke \
   --payload '{"targets": [{"type": "user", "name": "john.doe"}]}' \
   output.json
 
-# Audit multiple targets at once
+# Audit a managed policy (name or full ARN)
+aws lambda invoke \
+  --function-name iam-scanner-lambda \
+  --payload '{"targets": [{"type": "policy", "name": "MyCustomPolicy"}]}' \
+  output.json
+
+# Audit multiple targets in one call
 aws lambda invoke \
   --function-name iam-scanner-lambda \
   --payload '{"targets": [{"type": "role", "name": "AppRole"}, {"type": "user", "name": "admin"}]}' \
   output.json
 ```
 
-**3️⃣ Download the Report**
+### 6️⃣ Download the Report
+
 ```bash
-aws s3 ls s3://your-s3-bucket/iam-audit-reports/
-aws s3 cp s3://your-s3-bucket/iam-audit-reports/MyApplicationRole_*.xlsx ./
+# List generated reports
+aws s3 ls s3://sasi-audit-reports-bucket/iam-audit-reports/
+
+# Download a specific report
+aws s3 cp s3://sasi-audit-reports-bucket/iam-audit-reports/MyApplicationRole_*.xlsx ./
 ```
 
-**Input Format Options:**
-
-The Lambda accepts a structured format with multiple entity types:
-```json
-{
-  "targets": [
-    {"type": "role", "name": "RoleName"},
-    {"type": "policy", "name": "PolicyNameOrArn"},
-    {"type": "user", "name": "UserName"}
-  ]
-}
-```
+> The S3 bucket name is the value of `s3_bucket_name` in `variables.tf` (default: `sasi-audit-reports-bucket`). Update it to a globally unique name before deploying.
 
 **That's it!** Open the Excel file and review your audit.
 
-📖 For detailed instructions, see [Getting Started Guide](docs/getting-started.md).
+📖 For full invocation options and troubleshooting, see the [Usage Guide](docs/USAGE.md).
 
 ---
 
@@ -376,19 +434,16 @@ Step-by-step video guides for deploying and using the IAM Lens.
 
 ### Core Documentation
 
-- **[Getting Started](docs/getting-started.md)** - Prerequisites, deployment, first audit
 - **[Features](docs/features.md)** - Detailed report structure and capabilities
 - **[Architecture](docs/architecture.md)** - System design and component details
 - **[Usage Guide](docs/usage-guide.md)** - Advanced usage, troubleshooting, best practices
-- **[Videos](docs/videos.md)** - Video tutorials and demos
 
 ### Quick Links
 
-- [Prerequisites](docs/getting-started.md#prerequisites)
-- [Deployment Steps](docs/getting-started.md#deployment)
-- [Input Formats](docs/usage-guide.md#input-formats)
-- [Troubleshooting](docs/usage-guide.md#troubleshooting)
-- [Best Practices](docs/usage-guide.md#best-practices)
+- [Input Formats](docs/USAGE.md#input-formats)
+- [Invoking the Lambda](docs/USAGE.md#invoking-the-lambda-function)
+- [Troubleshooting](docs/USAGE.md#troubleshooting)
+- [Best Practices](docs/USAGE.md#best-practices)
 
 ---
 
