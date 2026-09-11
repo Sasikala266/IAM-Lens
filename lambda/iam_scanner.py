@@ -732,7 +732,7 @@ def parse_user_policy_document(
             service, action_name = split_action(action)
             access_type = classify_access_type(service, action_name)
             full_action = f"{service}:{action_name}" if service != "Unknown" else action_name
-            
+            full_action = f"{service}:{action_name}" if service not in ["Unspecified"] else action_name
             for resource in resource_items:
                 resource_level = classify_resource_level(service, resource)
                 risk_flag = identify_risk_flag(
@@ -1178,7 +1178,7 @@ def parse_policy_document(
         for action in action_items:
             service, action_name = split_action(action)
             access_type = classify_access_type(service, action_name)
-            full_action = f"{service}:{action_name}" if service != "Unknown" else action_name
+            full_action = f"{service}:{action_name}" if service not in ["Unspecified"] else action_name
             for resource in resource_items:
                 resource_level = classify_resource_level(service, resource)
                 risk_flag = identify_risk_flag(
@@ -1233,11 +1233,14 @@ def split_action(action):
         if ":" in clean_action:
             service, action_name = clean_action.split(":", 1)
             return f"NotAction-{service}", action_name
-        return "NotAction-Unknown", clean_action
+        return "NotAction-Unspecified", clean_action
     if ":" in action:
         service, action_name = action.split(":", 1)
         return service, action_name
-    return "Unknown", action
+    # For wildcard actions like "*" without a service prefix, use a more descriptive label
+    if action == "*":
+        return "All Services", action
+    return "Unspecified", action
 
 def classify_access_type(service, action_name):
     action_lower = action_name.lower()
