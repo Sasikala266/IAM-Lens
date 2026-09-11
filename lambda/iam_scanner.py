@@ -180,8 +180,8 @@ def process_role(role_name, account_id, output_bucket, output_prefix,
                 "Severity": "Info",
                 "Resource": "",
                 "Action": ""
+            }]
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         safe_role_name = sanitize_name(role_name)
         file_name = f"{safe_role_name}_{account_id}_{timestamp}.xlsx"
         local_path = f"/tmp/{file_name}"
@@ -1411,7 +1411,10 @@ def build_service_summary(detailed_rows):
         full_action = row.get("FullAction", "")
         valid_access_types = ["Read", "Write", "List", "Delete", "Admin", "Wildcard", "PermissionManagement"]
         if access_type in valid_access_types:
-        summary[key][access_type if access_type in valid_access_types else "Other"] = "Yes"
+            summary[key][access_type] = "Yes"
+            summary[key]["Resources"].add(resource)
+        else:
+            summary[key]["Other"] = "Yes"
             summary[key]["Resources"].add(resource)
         if full_action:
             summary[key]["Actions"].add(full_action)
@@ -1698,6 +1701,8 @@ def write_excel_report_for_role(
     risk_rows,
     last_access_rows,
     role_usage_rows
+):
+    """Write Excel report for roles with all 5 tabs"""
     wb = Workbook()
     default_sheet = wb.active
     wb.remove(default_sheet)
@@ -1707,8 +1712,6 @@ def write_excel_report_for_role(
     add_sheet(wb, "Last Access", last_access_rows)
     add_sheet(wb, "Role Usage CloudTrail", role_usage_rows)
     wb.save(local_path)
-    """Write Excel report for roles with all 5 tabs"""
-    write_excel_report(local_path, detailed_rows, summary_rows, risk_rows, last_access_rows, role_usage_rows)
 
 def write_excel_report_for_policy(local_path, detailed_rows, summary_rows, risk_rows):
     """Write Excel report for policies with only 3 relevant tabs"""
